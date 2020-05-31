@@ -20,7 +20,7 @@ case class ByName(name: String) extends FindOption {
 
 case class ByPath(path: VirtualPath) extends FindOption {
   val param = "-path"
-  val value: String = path.quoted.replace("*", "\\*")
+  val value: String = path.singleQuoted.replace("*", "\\*")
 }
 
 case class ByCreateDate(secondsAgo: Long) extends FindOption {

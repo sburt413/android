@@ -25,6 +25,9 @@ case class Tag(title: String, album: String, artist: String)
 case class TrackRecord(hash: String, path: VirtualPath, lastModified: Instant, tag: Tag)
 
 object TrackRecord {
+  def apply(hash: String, file: VirtualFile, tag: Tag): TrackRecord =
+    TrackRecord(hash, file.path, file.modifyTime, tag)
+
   def apply(hash: String, file: VirtualFile, tag: ID3v2): TrackRecord =
     TrackRecord(hash, file.path, file.modifyTime, Tag(tag.getTitle, tag.getAlbum, tag.getArtist))
 

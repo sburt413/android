@@ -3,15 +3,18 @@ package com.hydrangea.music.library.index
 import java.time.{Instant, ZonedDateTime}
 
 import com.hydrangea.android.adb.Device
-import com.hydrangea.android.file.AndroidPath
-import com.hydrangea.music.library.{Diff, Latest, Tag, TrackRecord}
-import com.sksamuel.elastic4s._
+import com.hydrangea.android.file.{AndroidPath, VirtualPath}
+import com.hydrangea.music.library._
 import com.sksamuel.elastic4s.fields._
 import com.sksamuel.elastic4s.http.JavaClient
 import com.sksamuel.elastic4s.requests.common.RefreshPolicy
 import com.sksamuel.elastic4s.requests.mappings.MappingDefinition
-import com.sksamuel.elastic4s.requests.searches.SearchResponse
 import com.sksamuel.elastic4s.requests.searches.queries.Query
+import com.sksamuel.elastic4s.requests.searches.queries.matches.MatchAllQuery
+import com.sksamuel.elastic4s.requests.searches.{SearchHit, SearchResponse}
+import com.sksamuel.elastic4s.{Response, _}
+import org.slf4j.{Logger, LoggerFactory}
+import scalaz.syntax.std.option._
 
 import scala.annotation.tailrec
 import scala.util.control.NonFatal
@@ -23,12 +26,14 @@ object IndexService {
 
   type Id = String
 
+  private[index] val logger: Logger = LoggerFactory.getLogger(IndexService.getClass)
+
   def createIndex(device: Device): Unit =
     withClient { client =>
       val rawField: List[ElasticField] = List(KeywordField("raw"))
 
-      val hashField = KeywordField(name = "hash")
       val pathField = TextField("path", fields = rawField)
+      val hashField = KeywordField(name = "hash")
       val lastModifiedField = DateField("lastModified")
       val titleField = TextField("title", fields = rawField)
       val albumField = TextField("album", fields = rawField)
@@ -46,33 +51,57 @@ object IndexService {
       client.close()
     }
 
-  def put(device: Device, record: TrackRecord, forceOverwrite: Boolean = false, replace: Boolean = true): Unit =
+  def put(device: Device, record: TrackRecord, forceOverwrite: Boolean = false): Option[TrackRecord] =
+    putAll(device: Device, Seq(record), forceOverwrite).headOption
+
+  def putAll(device: Device, records: Seq[TrackRecord], forceOverwrite: Boolean = false): Seq[TrackRecord] =
     withClient { client =>
-      val existingRecords: Seq[(Id, TrackRecord)] = IndexService.query(device, PathQuery(record.path))
-      val writeRecord: Boolean =
+      val recordByPath: Map[VirtualPath, Seq[TrackRecord]] = records.groupBy(_.path)
+
+      // Get the existing records to see if we already have as recent/more recent data
+      val existingRecordByPath: Map[VirtualPath, TrackRecord] =
         if (forceOverwrite) {
-          true
+          // To overwrite, we simply will not bother to see if we have existing data.  Elastic will automatically update
+          // the record in the index if there is a collision
+          logger.trace(s"Ignoring existing records for: ${recordByPath.keySet.mkString(", ")}")
+          Map.empty
         } else {
-          // Diff the file against all the existing and check the record we're given is the absolute latest of all
-          existingRecords
-            .map({ case (_, existing) => Diff.fileDiff(record, existing) })
-            .forall({
-              case Latest(latest) if latest.equals(record) => true
-              case _                                       => false
-            })
+          // Otherwise, fetch all the existing records for the paths so
+          val recordsFromPathQuery: AnyOf = AnyOf(records.map(record => PathQuery(record.path)))
+          logger.trace(s"Sending query to find existing records for paths: $recordsFromPathQuery")
+          IndexService
+            .query(device, recordsFromPathQuery, 10000)
+            .map(_._2)
+            .groupBy(_.path)
+            .transform((_, rs) => rs.head)
         }
 
-      if (writeRecord) {
-        if (replace) {
-          // TODO: Seriously, make 'in' query
-          existingRecords.foreach({
-            case (id, _) =>
-              client.execute {
-                deleteById(device.serial, id).refreshImmediately
-              }.await
-          })
-        }
+      // Determine which of the given new records are more recent than what we have indexed for their respective paths
+      val recordsToWrite: Seq[TrackRecord] =
+        recordByPath.toSeq.flatMap({
+          case (path, newRecords) =>
+            val existingRecord: Option[TrackRecord] = existingRecordByPath.get(path)
+            // Distinct new records just in case the caller made that trivial mistake
+            val diff: DiffResult = Diff.mostRecent(newRecords.distinct ++ existingRecord.toSeq: _*)
 
+            diff match {
+              case Latest(record) =>
+                val possibleRecord: Option[TrackRecord] = Some(record).filter(newRecords.contains)
+                val existsMsg: String = possibleRecord.cata(_ => "is new record", "already exists")
+                logger.debug(s"Most recent record for path ($path) $existsMsg: $record")
+                possibleRecord
+              case Same =>
+                logger.debug(s"All records for path ($path) match existing records in index.")
+                None
+              case Conflict =>
+                throw new IllegalStateException(
+                  s"Encountered conflict attempting to determine latest record for path ($path): New: ${newRecords
+                    .mkString(", ")}, Existing: ${existingRecord.mkString(", ")}")
+            }
+        })
+
+      recordsToWrite.foreach { record =>
+        logger.info(s"Indexing record for device $device: $record")
         client.execute {
           indexInto(device.serial)
             .fields(
@@ -81,39 +110,38 @@ object IndexService {
               "lastModified" -> record.lastModified,
               "tag" -> Map("title" -> record.tag.title, "album" -> record.tag.album, "artist" -> record.tag.artist)
             )
+            .id(record.path.raw)
             .refresh(RefreshPolicy.Immediate)
         }.await
       }
 
-      client.close()
+      recordsToWrite
     }
 
-  def query(device: Device, query: RecordQuery): Seq[(Id, TrackRecord)] =
+  def query(device: Device, query: RecordQuery, size: Int): Seq[(Id, TrackRecord)] =
     withClient { client =>
-      val resp =
+      import com.sksamuel.elastic4s.requests.searches._
+      val response: Response[SearchResponse] =
         client.execute {
-          Elastic.search(device.serial).query(QueryBuilder.toElasticsearch(query))
+          val request: SearchRequest =
+            Elastic.search(device.serial).query(QueryBuilder.toElasticsearch(query)).size(size)
+
+          logger.debug(s"Sending query: ${request.show}")
+          request
         }.await
 
-      client.close()
+      parseResults(response)
+    }
 
-      println("---- Search Results ----")
-      println(resp)
+  def queryAll(device: Device): Seq[(Id, TrackRecord)] =
+    withClient { client =>
+      logger.debug(s"Querying all records for device: $device")
+      val response: Response[SearchResponse] =
+        client.execute {
+          Elastic.search(device.serial).query(MatchAllQuery()).size(10000)
+        }.await
 
-      val results: Array[(String, TrackRecord)] =
-        resp match {
-          case results: RequestSuccess[SearchResponse] =>
-            println(results.result.hits.hits.toList)
-            results.result.hits.hits.map(hit => (hit.id, toRecord(hit.sourceAsMap)))
-          case results: RequestSuccess[_] =>
-            println(results.result)
-            throw new RuntimeException(s"Search Failure: Not the success we are looking for: $results")
-          case failure: RequestFailure =>
-            println("We failed " + failure.error)
-            throw new RuntimeException(s"Search Failure: ${failure.error}")
-        }
-
-      results.toSeq
+      parseResults(response)
     }
 
   private def connect(): ElasticClient = {
@@ -126,9 +154,9 @@ object IndexService {
   private def withClient[A](fn: ElasticClient => A): A = {
     val client: ElasticClient = connect()
 
-    var retval: Option[A] = None
+    var result: Option[A] = None
     try {
-      retval = Some(fn(client))
+      result = Some(fn(client))
     } catch {
       case NonFatal(e) =>
         client.close()
@@ -136,8 +164,19 @@ object IndexService {
     }
 
     client.close()
-    retval.get
+    result.get
   }
+
+  private def parseResults(response: Response[SearchResponse]): Seq[(Id, TrackRecord)] =
+    response match {
+      case results: RequestSuccess[SearchResponse] =>
+        val hits: Array[SearchHit] = results.result.hits.hits
+        logger.debug(s"Parsing ${hits.length} search hits.")
+        hits.map(hit => (hit.id, toRecord(hit.sourceAsMap)))
+      case failure: RequestFailure =>
+        logger.error("Search failed: " + failure.error)
+        throw new RuntimeException(s"Search Failure: ${failure.error}")
+    }
 
   private def toRecord(sourceMap: Map[String, Any]): TrackRecord = {
     val hash: String = sourceMap("hash").toString

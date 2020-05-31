@@ -1,6 +1,28 @@
 package com.hydrangea.music.library
 
+import java.time.Instant
+
 object Diff {
+  def mostRecent(tracks: TrackRecord*): DiffResult = {
+    val latestUpdate: Instant = tracks.map(_.lastModified).max
+
+    val latestUpdated: Seq[TrackRecord] = tracks.filter(_.lastModified.equals(latestUpdate))
+    if (latestUpdated.size == 1) {
+      Latest(latestUpdated.head)
+    } else {
+      val tags: Seq[Tag] = tracks.map(_.tag)
+      val tagsMatch: Boolean = tags.tail.forall(_.equals(tags.head))
+      val hashs: Seq[String] = tracks.map(_.hash)
+      val hashsMatch: Boolean = hashs.tail.forall(_.equals(hashs.head))
+
+      if (tagsMatch && hashsMatch) {
+        Same
+      } else {
+        Conflict
+      }
+    }
+  }
+
   def fileDiff(lhs: TrackRecord, rhs: TrackRecord): DiffResult = {
     if (lhs.lastModified.isAfter(rhs.lastModified)) {
       Latest(lhs)

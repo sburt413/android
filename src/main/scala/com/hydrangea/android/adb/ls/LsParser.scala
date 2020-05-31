@@ -61,20 +61,27 @@ object LsParser {
     // Ignore first column containing total
     val entries: Seq[String] = output.tail
     entries
-      .map(entry => {
-        // Permissions, Number, Owner, Group, Size, Modify Date, Modify Time, File Name
-        val columns: Seq[String] = entry.split("\\s+", 9).toSeq
-        val fileName: String = columns(8)
-        // 2019-02-11 22:05:37.121626843 -0500
-        val dateString: String = columns(5) + 'T' + columns(6)
-          .substring(0, 12) + columns(7) // Truncate to millisecond precision
-        val modifyTime: Instant = dateFormat.parse(dateString).toInstant
-        (fileName, modifyTime)
-      })
+      .flatMap(parseFile)
       .filter({
         case (pathString, _) =>
           val path: AndroidPath = AndroidPath(pathString)
           !VirtualPath.isCurrentDirectory(path) && !VirtualPath.isParentDirectory(path)
+      })
+  }
+
+  def parseFile(entry: String): Option[(String, Instant)] = {
+    Option(entry)
+      .filterNot(_.matches("total\\s+\\d+"))
+      .map(line => {
+        // Permissions, Number, Owner, Group, Size, Modify Date, Modify Time, File Name
+        val columns: Seq[String] = line.split("\\s+", 9).toSeq
+        println(s"Parsing $columns")
+        val fileName: String = columns(8)
+        // 2019-02-11 22:05:37.121626843 -0500
+        // Truncate to millisecond precision
+        val dateString: String = columns(5) + 'T' + columns(6).substring(0, 12) + columns(7)
+        val modifyTime: Instant = dateFormat.parse(dateString).toInstant
+        (fileName, modifyTime)
       })
   }
 }

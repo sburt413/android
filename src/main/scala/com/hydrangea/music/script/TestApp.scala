@@ -1,80 +1,123 @@
 package com.hydrangea.music.script
 
-import java.io.File
+import java.nio.file.{Files, Path, Paths}
+import java.time.Instant
 
-import com.hydrangea.android.adb.CommandlineHelper._
 import com.hydrangea.android.adb.{ADB, Device}
 import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
 import com.hydrangea.music.library.TrackRecord
-import com.hydrangea.music.library.index.{ArtistQuery, IndexService}
-import com.mpatric.mp3agic.{ID3v2, Mp3File}
-import IndexService._
+import com.hydrangea.music.library.index.{DeviceIndexRecord, IndexRecordService, RecordCandidate}
+import com.hydrangea.music.tagger.TikaAndroidTagger
 
 object TestApp {
-  val adbDirectory: LocalDirectory = {
-    val file: File = new File("D:\\adb")
-    file.mkdirs()
-    LocalDirectory(file)
+  val adbDirectory: WindowsDirectory = {
+    val path: Path = Paths.get("D:\\adb")
+    Files.createDirectories(path)
+    WindowsDirectory(path)
   }
 
   private val device: Device = ADB.firstDevice
 
   private val musicDirectoryPath: AndroidPath = "/storage/0123-4567/Music".toAndroidPath
+  private val devinTownsendDirectoryPath: AndroidPath = "/storage/0123-4567/Music/Devin Townsend".toAndroidPath
+  private val acceleratedEvolution: AndroidPath = "/storage/0123-4567/Test/Accelerated Evolution".toAndroidPath
+  private val byAThreadAddicted: AndroidPath =
+    "/storage/0123-4567/Music/Devin Townsend/By a Thread - Live in London 2011 (incl Encores) [Explicit]".toAndroidPath
+  private val aPerfectCircle: AndroidPath =
+    "/storage/0123-4567/Music/A Perfect Circle".toAndroidPath
+  private val merDeNoms: AndroidPath = aPerfectCircle :+ "Mer de Noms"
   private val generationAxeDirectoryPath: AndroidPath = "/storage/0123-4567/Music/Generation Axe".toAndroidPath
   private val whippingPostPath: AndroidPath =
     "/storage/0123-4567/Music/Generation Axe/The Guitars That Destroyed The World_ Li/06 Whipping Post [Live].mp3".toAndroidPath
 
   def main(args: Array[String]): Unit = {
-    val records: Seq[TrackRecord] = copyGenerationAxe()
+    device.withCommandLine() { commandLine =>
+//      commandLine.mostRecentUpdate("/storage/0123-4567/Music/Motörhead/".toAndroidPath)
 
-    IndexService.createIndex(device)
-    records.foreach(record => {
-      println(s"Indexing $record")
-      IndexService.put(device, record)
-    })
+      val existingIndex: Option[DeviceIndexRecord] = IndexRecordService.getIndexRecordForDevice(device)
+      println(s"Existing record is $existingIndex")
 
-    println("Done indexing")
+      val musicDirectory: AndroidDirectory =
+        commandLine
+          .stat(musicDirectoryPath)
+          .getOrElse(throw new IllegalArgumentException(s"Music directory not found: $musicDirectoryPath"))
+          .to[AndroidDirectory]
+          .getOrElse(throw new IllegalArgumentException(s"Music file is not a directory: $musicDirectoryPath"))
 
-    val results: Seq[(Id, TrackRecord)] = IndexService.query(device, ArtistQuery("Tosin"))
-    println(s"Found results: $results")
+      val artistFolders: List[RecordCandidate] =
+        commandLine
+          .list(musicDirectoryPath)
+          .flatMap(_.to[AndroidDirectory])
+          .map(dir => {
+            val lastModify: Instant = commandLine.mostRecentUpdate(dir.path).getOrElse(dir.modifyTime)
+            RecordCandidate(dir.path, lastModify)
+          })
+          .toList
+
+      val updatedIndex: DeviceIndexRecord =
+        existingIndex
+          .map(index => index.reindex(artistFolders))
+          .getOrElse(DeviceIndexRecord.create(musicDirectory, artistFolders))
+
+      println(s"New index is: $updatedIndex")
+      IndexRecordService.writeIndex(device, updatedIndex)
+    }
   }
 
-  def printListings(): Unit = {
-    val listing: Seq[RemoteFile] = device.commandline().scan(musicDirectoryPath)
-    listing.foreach(println)
-  }
+  def tag() = {
+    device.withCommandLine() { commandLine =>
+      //      val path: AndroidPath = "/storage/0123-4567/Test/Addicted/01-03- Bend It Like Bender!.mp3".toAndroidPath
 
-  def copyGenerationAxe(): Seq[TrackRecord] = {
-    val source: AndroidDirectory =
-      device
-        .commandline()
-        .stat(generationAxeDirectoryPath)
-        .flatMap({
-          case dir: AndroidDirectory => Some(dir)
-          case _                     => None
-        })
-        .getOrElse(throw new IllegalStateException("File Not Found: " + generationAxeDirectoryPath))
+      //      val toEval = s"'ls -la ${path.raw.replace(" ", "\\ ").replace("!", "\\!")}'"
+      //      val cmd = "\"" + "eval " + toEval + "\""
+      //      val (_, output, _) = commandLine.execOutCmdAndParse(cmd)
+      //      println(s"OUTPUT: ${output.mkString("\n")}")
 
-    val copied: Map[AndroidPath, WindowsPath] = device.commandline().pull(source, adbDirectory)
-    copied
-      .filter(_._2.raw.endsWith(".mp3"))
-      .map({
-        case (src, dest) =>
-          val sourceSum: String = device.commandline().sha1sum(src)
+      println(s"Extracting MP3 tags.")
+      val mp3Files: Seq[AndroidRegularFile] =
+        commandLine
+          .listRecursive(merDeNoms)
+          .collect({
+            case f: AndroidRegularFile => f
+          })
+          .filter(VirtualFile.mp3Filter)
 
-          val destFile: LocalFile =
-            LocalFileSystem.read(dest).getOrElse(throw new IllegalStateException(s"Did not copy file: $dest"))
-          val mp3File = new Mp3File(destFile.toJavaFile)
-          val tag: ID3v2 = mp3File.getId3v2Tag
-          println(src + s" ($sourceSum) => " + dest + s" (${tag.getArtist} / ${tag.getTitle})")
+      val records: Seq[TrackRecord] = mp3Files.map(TikaAndroidTagger.tag(commandLine, _))
+      println(s"Extracted Records:\n${records.mkString("\n")}")
 
-          TrackRecord(sourceSum, destFile, tag)
-      })
-      .toSeq
-  }
+      //      val depthCharge: AndroidRegularFile =
+      //        commandLine.stat("/storage/0123-4567/Test/DepthCharge.mp3".toAndroidPath).get.to[AndroidRegularFile].get
+      //      val record: TrackRecord = TikaAndroidTagger.tag(commandLine, depthCharge)
+      //      val record: TrackRecord = TikaAndroidTagger.tag2(commandLine, depthCharge)
+      //      println(s"Final record: $record")
 
-  def sha1(path: AndroidPath): Unit = {
-    println(device.commandline().sha1sum(path))
+      //commandLine.transferViaBase64(depthCharge.path, out)
+      //      mp3Files.map(file => {
+      //        val fileDataStream: InputStream = commandLine.transferViaBase64Tunnel(file.path)
+      //        val out: Path = Files.createTempFile("adb", ".dat")
+      //        val outStream = new FileOutputStream(out.toFile)
+      //        IOUtils.copy(fileDataStream, outStream)
+      //        fileDataStream.close()
+      //        outStream.close()
+      //
+      //        println(s"Wrote to temp file: $out")
+      //      })
+    }
+
+    //    val writtenRecords: Seq[TrackRecord] =
+    //      device.withCommandLine() { commandline =>
+    //        val source: AndroidDirectory =
+    //          commandline
+    //            .statOrThrow(devinTownsendDirectoryPath)
+    //            .castOrThrow[AndroidDirectory]
+    //
+    //        LibraryService.updateIndex(device, source, forceOverwrite = true)
+    //      }
+    //
+    //    println(s"Wrote records:\n${writtenRecords.mkString("\n")}")
+    //
+    //    val results: Seq[(Id, TrackRecord)] = IndexService.query(device, ArtistQuery(writtenRecords.head.tag.artist), 1000)
+    //    println(s"Found results:n${results.mkString("\n")}")
   }
 }

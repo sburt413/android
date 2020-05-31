@@ -1,20 +1,42 @@
 package com.hydrangea.android.file
 
 import java.io.File
+import java.nio.file.{Path, Paths}
+
+import argonaut._
+import Argonaut._
+import enumeratum.EnumEntry
+
+import scala.language.implicitConversions
 
 sealed trait VirtualPath {
-  import PathConverter._
+  import VirtualPath._
 
   type thisType >: this.type <: VirtualPath
 
   def pathSeparator: Char
 
+  def parent(implicit builder: PathBuilder[thisType]): thisType =
+    builder.build(raw.substring(0, raw.lastIndexOf(pathSeparator)))
+
   def raw: String
 
   //  adb -d shell ls -pla --full-time '/storage/0123-4567/Music/Metallica/S&M'
-  def quoted: String = '"' + raw + '"'
+//  def quoted: String = '"' + raw + '"'
 
-  def ++(childPath: String)(implicit builder: PathBuilder[thisType]): thisType = {
+  // This goes through maniacal parsing in ProcessImpl#createCommandLine
+//  def encoded: String = "\"" + raw.replace(" ", "\\ ").replace("!", "\\!") + "\""
+//  def quoted: String = raw.replace(" ", "\\ ")
+//  def escaped: String = '"' + raw.replace(" ", "\\ ") + '"'
+  def quoted: String = "\"" + raw + "\""
+//  def quoted: String = '"' + raw.replace(" ", "\\ ") + '"'
+  def singleQuoted: String = "\'" + raw + "\'"
+  def escaped: String = "\"" + raw.escape(' ').escape('&').escape('\'') + "\""
+
+  // adb -s 98897a364a4d574549 exec-out base64 '/storage/0123-4567/Test/Addicted/01-02- Universe In a Ball!.mp3'
+  // adb -s 98897a364a4d574549 exec-out base64 "/storage/0123-4567/Test/Addicted/01-02- Universe In a Ball"'!'".mp3" | head
+
+  def :+(childPath: String)(implicit builder: PathBuilder[thisType]): thisType = {
     val base: String =
       if (raw.endsWith("/")) {
         raw
@@ -69,15 +91,7 @@ case class AndroidPath(raw: String) extends VirtualPath {
     WindowsPath(raw.replace("/", "\\"))
 }
 
-object AndroidPath {
-  implicit val androidBuilder: PathBuilder[AndroidPath] = AndroidPath.apply
-
-  implicit val androidToWindows: PathConverter[AndroidPath, WindowsPath] =
-    androidPath => androidPath.toWindows
-
-  implicit val androidToAndroid: PathConverter[AndroidPath, AndroidPath] =
-    identity
-}
+object AndroidPath {}
 
 case class WindowsPath(raw: String) extends VirtualPath {
   override type thisType = WindowsPath
@@ -88,16 +102,7 @@ case class WindowsPath(raw: String) extends VirtualPath {
     AndroidPath(raw.replace("\\", "/"))
 
   def toJavaFile: File = new File(raw)
-}
-
-object WindowsPath {
-  implicit val windowsBuilder: PathBuilder[WindowsPath] = WindowsPath.apply
-
-  implicit val windowsToAndroid: PathConverter[WindowsPath, AndroidPath] =
-    windowsPath => windowsPath.toAndroid
-
-  implicit val windowsToWindows: PathConverter[WindowsPath, WindowsPath] =
-    identity
+  def toJavaPath: Path = Paths.get(raw)
 }
 
 trait PathBuilder[A <: VirtualPath] {
@@ -108,9 +113,12 @@ trait PathConverter[A <: VirtualPath, B <: VirtualPath] {
   def convert(sourcePath: A): B
 }
 
-private object PathConverter {}
+object VirtualPath extends VirtualPathCodecs {
+  def extensionFilter(extension: String): VirtualPath => Boolean =
+    path => path.raw.endsWith(extension)
 
-object VirtualPath {
+  val mp3Filter = extensionFilter(".mp3")
+
   def isCurrentDirectory(path: VirtualPath): Boolean =
     path match {
       case AndroidPath(raw) => raw.equals(".") || raw.equals("./")
@@ -123,8 +131,27 @@ object VirtualPath {
       case WindowsPath(raw) => raw.equals("..") || raw.equals("..\\")
     }
 
+  implicit def convert(path: Path): WindowsPath = WindowsPath(path.toAbsolutePath.toString)
+
   implicit class StringPathOps(str: String) {
+    def escape(ch: Char): String = str.replace("" + ch, s"\\$ch")
     def toAndroidPath: AndroidPath = AndroidPath(str)
     def toWindowsPath: WindowsPath = WindowsPath(str)
   }
+
+  implicit val androidBuilder: PathBuilder[AndroidPath] = AndroidPath.apply
+
+  implicit val androidToWindows: PathConverter[AndroidPath, WindowsPath] =
+    androidPath => androidPath.toWindows
+
+  implicit val androidToAndroid: PathConverter[AndroidPath, AndroidPath] =
+    identity
+
+  implicit val windowsBuilder: PathBuilder[WindowsPath] = WindowsPath.apply
+
+  implicit val windowsToAndroid: PathConverter[WindowsPath, AndroidPath] =
+    windowsPath => windowsPath.toAndroid
+
+  implicit val windowsToWindows: PathConverter[WindowsPath, WindowsPath] =
+    identity
 }
