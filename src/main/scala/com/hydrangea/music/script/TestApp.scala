@@ -7,7 +7,7 @@ import com.hydrangea.android.adb.{ADB, Device}
 import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
 import com.hydrangea.music.library.TrackRecord
-import com.hydrangea.music.library.index.{DeviceIndexRecord, IndexRecordService, RecordCandidate}
+import com.hydrangea.music.library.index.{DeviceIndexRecord, DeviceIndexRecordService, RecordCandidate}
 import com.hydrangea.music.tagger.TikaAndroidTagger
 
 object TestApp {
@@ -33,35 +33,7 @@ object TestApp {
 
   def main(args: Array[String]): Unit = {
     device.withCommandLine() { commandLine =>
-//      commandLine.mostRecentUpdate("/storage/0123-4567/Music/Motörhead/".toAndroidPath)
-
-      val existingIndex: Option[DeviceIndexRecord] = IndexRecordService.getIndexRecordForDevice(device)
-      println(s"Existing record is $existingIndex")
-
-      val musicDirectory: AndroidDirectory =
-        commandLine
-          .stat(musicDirectoryPath)
-          .getOrElse(throw new IllegalArgumentException(s"Music directory not found: $musicDirectoryPath"))
-          .to[AndroidDirectory]
-          .getOrElse(throw new IllegalArgumentException(s"Music file is not a directory: $musicDirectoryPath"))
-
-      val artistFolders: List[RecordCandidate] =
-        commandLine
-          .list(musicDirectoryPath)
-          .flatMap(_.to[AndroidDirectory])
-          .map(dir => {
-            val lastModify: Instant = commandLine.mostRecentUpdate(dir.path).getOrElse(dir.modifyTime)
-            RecordCandidate(dir.path, lastModify)
-          })
-          .toList
-
-      val updatedIndex: DeviceIndexRecord =
-        existingIndex
-          .map(index => index.reindex(artistFolders))
-          .getOrElse(DeviceIndexRecord.create(musicDirectory, artistFolders))
-
-      println(s"New index is: $updatedIndex")
-      IndexRecordService.writeIndex(device, updatedIndex)
+      commandLine.sha1sum("/storage/0123-4567/Music/Aerosmith/Get Your Wings/06 Train Kept A Rollin'.mp3".toAndroidPath)
     }
   }
 

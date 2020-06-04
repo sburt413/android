@@ -35,7 +35,7 @@ object VirtualFile extends VirtualFileCodecs {
   def extensionFilter(extension: String): VirtualFile => Boolean =
     file => VirtualPath.extensionFilter(extension)(file.path)
 
-  val mp3Filter = extensionFilter(".mp3")
+  val mp3Filter: VirtualFile => Boolean = extensionFilter(".mp3")
 }
 
 // Remote as in 'on the android device'

@@ -68,7 +68,6 @@ object TikaAndroidTagger {
 
     val tagReaderBuilder: ADBProcessListenerBuilder =
       inputStream => {
-        var count: Int = 0
         val startParser: () => Unit = () => parserThread.start()
         val onRead: (Array[Byte], Int) => Unit =
           (buffer, readLength) => {

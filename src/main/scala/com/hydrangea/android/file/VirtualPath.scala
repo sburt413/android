@@ -6,6 +6,7 @@ import java.nio.file.{Path, Paths}
 import argonaut._
 import Argonaut._
 import enumeratum.EnumEntry
+import org.apache.commons.exec.util.StringUtils
 
 import scala.language.implicitConversions
 
@@ -30,8 +31,13 @@ sealed trait VirtualPath {
 //  def escaped: String = '"' + raw.replace(" ", "\\ ") + '"'
   def quoted: String = "\"" + raw + "\""
 //  def quoted: String = '"' + raw.replace(" ", "\\ ") + '"'
-  def singleQuoted: String = "\'" + raw + "\'"
-  def escaped: String = "\"" + raw.escape(' ').escape('&').escape('\'') + "\""
+  def commandLine: String =
+    if (raw.contains("'")) {
+      StringUtils.quoteArgument(raw).escape(' ').escape('&').escape('\'').escape('`').escape('(').escape(')')
+    } else {
+      "\'" + raw + "\'"
+    }
+  def escaped: String = "\"" + raw.escape(' ').escape('&').escape('\'').escape('(').escape(')') + "\""
 
   // adb -s 98897a364a4d574549 exec-out base64 '/storage/0123-4567/Test/Addicted/01-02- Universe In a Ball!.mp3'
   // adb -s 98897a364a4d574549 exec-out base64 "/storage/0123-4567/Test/Addicted/01-02- Universe In a Ball"'!'".mp3" | head

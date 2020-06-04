@@ -2,9 +2,9 @@ package com.hydrangea.music.library.index
 
 import java.time.Instant
 
-import com.hydrangea.android.file.{AndroidDirectory, AndroidPath}
+import argonaut.Argonaut._
 import argonaut._
-import Argonaut._
+import com.hydrangea.android.file.{AndroidDirectory, AndroidFile, AndroidPath}
 import com.hydrangea.codec.Codecs._
 
 case class DeviceIndexRecord(rootDirectoryPath: AndroidDirectory, childRecords: List[LastIndexedRecord]) {
@@ -22,7 +22,7 @@ case class DeviceIndexRecord(rootDirectoryPath: AndroidDirectory, childRecords: 
       childRecords.find(_.directoryPath.equals(candidate.directoryPath))
 
     existingRecordForDir
-      .map(_.update(candidate.lastUpdated))
+      .map(_.updateLastUpdated(candidate.lastUpdated))
       .getOrElse(candidate.toLastIndexedRecord)
   }
 
@@ -41,17 +41,21 @@ case class DeviceIndexRecord(rootDirectoryPath: AndroidDirectory, childRecords: 
 
   /**
     * Merges all the given directories into this index and discards any existing record that was not found in the given
-    * directories.
+    * directories.  Any records removed from the index will be returned with the updated index.
     *
     * @param candidates all the directories this index should contain and the most recent update time for it or any
     *                        ancestor
-    * @return a new [[DeviceIndexRecord]] containing only the given directories
+    * @return a new [[DeviceIndexRecord]] containing only the given directories and the discarded records
     */
-  def reindex(candidates: List[RecordCandidate]): DeviceIndexRecord = {
+  def reindex(candidates: List[RecordCandidate]): (DeviceIndexRecord, List[LastIndexedRecord]) = {
     val records: List[LastIndexedRecord] =
       candidates.map(mergedRecord)
 
-    DeviceIndexRecord(rootDirectoryPath, records)
+    val candidatePathStrings: List[String] = candidates.map(_.directoryPath.raw)
+    val excludedRecords: List[LastIndexedRecord] =
+      childRecords.filterNot(record => candidatePathStrings.contains(record.directoryPath.raw))
+
+    (DeviceIndexRecord(rootDirectoryPath, records), excludedRecords)
   }
 
   /**
@@ -108,8 +112,11 @@ object DeviceIndexRecord {
     casecodec2(DeviceIndexRecord.apply, DeviceIndexRecord.unapply)("rootDirectoryPath", "childRecords")
 }
 
-case class LastIndexedRecord(directoryPath: AndroidPath, lastUpdate: Instant, lastIndexed: Option[Instant]) {
-  def needsUpdate: Boolean = lastIndexed.exists(indexed => lastUpdate.isAfter(indexed))
+case class LastIndexedRecord(directoryPath: AndroidPath,
+                             fileCount: Int,
+                             lastUpdate: Instant,
+                             lastIndexed: Option[Instant]) {
+  def needsUpdate: Boolean = lastIndexed.map(indexed => lastUpdate.isAfter(indexed)).getOrElse(true)
 
   /**
     * Returns an updated record with the most recent of either this record's lastUpdate or the given modify time.
@@ -117,17 +124,44 @@ case class LastIndexedRecord(directoryPath: AndroidPath, lastUpdate: Instant, la
     * @param modifyTime the potential new update time
     * @return an updated record with the most recent update time
     */
-  def update(modifyTime: Instant): LastIndexedRecord = {
+  def updateLastUpdated(modifyTime: Instant): LastIndexedRecord = {
     val newLastUpdate: Instant = Seq(lastUpdate, modifyTime).max
     copy(lastUpdate = newLastUpdate)
   }
+
+  /**
+    * Returns an updated record with the most recent of either this record's lastIndexed or the given index time.
+    *
+    * @param indexedTime the potential new index time
+    * @return an updated record with the most recent index time
+    */
+  def updateLastIndexed(indexedTime: Instant): LastIndexedRecord = {
+    val newLastIndexed: Instant = Seq(lastIndexed.getOrElse(Instant.EPOCH), indexedTime).max
+    copy(lastIndexed = Some(newLastIndexed))
+  }
+
+  def updateFileCount(fileCount: Int): LastIndexedRecord =
+    copy(fileCount = fileCount)
+
+  /**
+    * Returns whether we need to update the elasticsearch index for the given file.  We need to update the file if it
+    * was last modified after we last indexed it, or if we have never indexed it.
+    *
+    * @param file the file to check
+    * @return whether we currently need to index the file
+    */
+  def needsIndexing(file: AndroidFile): Boolean =
+    lastIndexed.map(last => file.modifyTime.isAfter(last)).getOrElse(true)
 }
 
 object LastIndexedRecord {
   implicit def codex: CodecJson[LastIndexedRecord] =
-    casecodec3(LastIndexedRecord.apply, LastIndexedRecord.unapply)("directoryPath", "lastUpdate", "lastIndexed")
+    casecodec4(LastIndexedRecord.apply, LastIndexedRecord.unapply)("directoryPath",
+                                                                   "fileCount",
+                                                                   "lastUpdate",
+                                                                   "lastIndexed")
 }
 
-case class RecordCandidate(directoryPath: AndroidPath, lastUpdated: Instant) {
-  def toLastIndexedRecord: LastIndexedRecord = LastIndexedRecord(directoryPath, lastUpdated, None)
+case class RecordCandidate(directoryPath: AndroidPath, fileCount: Int, lastUpdated: Instant) {
+  def toLastIndexedRecord: LastIndexedRecord = LastIndexedRecord(directoryPath, fileCount, lastUpdated, None)
 }

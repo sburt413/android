@@ -6,7 +6,7 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import com.hydrangea.android.adb.ADBProcess.WaitFor
-import com.hydrangea.android.adb.find.{FindDepth, FindOption}
+import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForRegularFiles}
 import com.hydrangea.android.adb.ls.LsParser
 import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
@@ -113,7 +113,7 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
   }
 
   def list(directoryPath: AndroidPath): Seq[AndroidFile] = {
-    val (_, listing, err) = runAndParse(shellCmd("ls", "-pla", "--full-time", directoryPath.singleQuoted))
+    val (_, listing, err) = runAndParse(shellCmd("ls", "-pla", "--full-time", directoryPath.commandLine))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running `list`: " + err.mkString("\n"))
     }
@@ -124,7 +124,7 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
   }
 
   def listRecursive(directoryPath: AndroidPath): Seq[AndroidFile] = {
-    val (_, listings, err) = runAndParse(shellCmd("ls", "-Rpla", "--full-time", directoryPath.singleQuoted))
+    val (_, listings, err) = runAndParse(shellCmd("ls", "-Rpla", "--full-time", directoryPath.commandLine))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running recursive `list`: " + err.mkString("\n"))
     }
@@ -134,9 +134,8 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
     } yield buildAndroidFile(path :+ fileName, lastModified)
   }
 
-  def find(directoryPath: AndroidPath, options: FindOption*): Seq[VirtualPath] = {
+  def find(directoryPath: AndroidPath, options: FindOption*): Seq[AndroidPath] =
     findCmd(directoryPath, options.flatMap(opt => Seq(opt.param, opt.value)))
-  }
 
   def findDirectories(directoryPath: AndroidPath, options: FindOption*): Seq[AndroidPath] = {
     val directoryType = Seq("-type", "d")
@@ -144,8 +143,11 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
     findCmd(directoryPath, directoryType ++ findOpts)
   }
 
+  def countFiles(directoryPath: AndroidPath): Seq[AndroidPath] =
+    findCmd(directoryPath, Seq(ForRegularFiles.param, ForRegularFiles.value))
+
   private def findCmd(directoryPath: AndroidPath, params: Seq[String]): Seq[AndroidPath] = {
-    val args: Seq[String] = Seq("find") ++ Seq(directoryPath.singleQuoted) ++ params
+    val args: Seq[String] = Seq("find") ++ Seq(directoryPath.commandLine) ++ params
     val (_, found, err) = runAndParse(shellCmd(args: _*))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running `find`: " + err.mkString("\n"))
@@ -156,7 +158,7 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
 
   def stat(path: AndroidPath): Option[AndroidFile] = {
     // adb -d shell stat -c '%Y %F' '/storage/0123-4567/Music/'
-    val args = Seq(s"stat -c '%Y %F' ${path.singleQuoted}")
+    val args = Seq(s"stat -c '%Y %F' ${path.commandLine}")
     val (_, output, err) = runAndParse(shellCmd(args: _*))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running `stat`: " + err.mkString("\n"))
@@ -185,7 +187,7 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
 
   def pull(sourceDirectory: AndroidDirectory, targetDirectory: WindowsDirectory): Map[AndroidPath, WindowsPath] = {
     // adb -d pull -a '/storage/0123-4567/Music/August\ Burns\ Red/' 'C:\adb'
-    val args: Seq[String] = Seq("pull", "-a", sourceDirectory.path.singleQuoted, targetDirectory.path.singleQuoted)
+    val args: Seq[String] = Seq("pull", "-a", sourceDirectory.path.commandLine, targetDirectory.path.commandLine)
     // For some reason the pull command spit output to the error stream
     val (_, _, output) = runAndParse(args)
     // skipping output:
@@ -224,14 +226,14 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
   def pull(source: AndroidRegularFile, target: WindowsFile): Option[VirtualPath] = {
     // adb -d pull -a '/storage/0123-4567/Music/August Burns Red/Guardians/02 - Bones.mp3' /cygdrive/d/adb/02\ -\ Bones.mp3
     // For some reason the pull command spits its output to the error stream
-    val command = Seq("pull", "-a", source.path.singleQuoted, target.path.singleQuoted)
+    val command = Seq("pull", "-a", source.path.commandLine, target.path.commandLine)
     val (_, _, output) = runAndParse(command)
     // 2938 KB/s (97352327 bytes in 32.355s)
     Option(output.head).filter(_.contains("bytes in")).map(_ => target.path)
   }
 
   def sha1sum(path: AndroidPath): String = {
-    val (_, output, err) = runAndParse(shellCmd("sha1sum", path.singleQuoted))
+    val (_, output, err) = runAndParse(shellCmd("sha1sum", path.commandLine))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running `sha1sum`: " + err.mkString("\n"))
     }

@@ -118,6 +118,17 @@ object IndexService {
       recordsToWrite
     }
 
+  def remove(device: Device, path: VirtualPath): Unit =
+    remove(device, Seq(path))
+
+  def remove(device: Device, paths: Seq[VirtualPath]): Unit =
+    withClient { client =>
+      paths.foreach(path => {
+        logger.info(s"Deleting $path from index.")
+        client.execute(deleteById(device.serial, path.raw))
+      })
+    }
+
   def query(device: Device, query: RecordQuery, size: Int): Seq[(Id, TrackRecord)] =
     withClient { client =>
       import com.sksamuel.elastic4s.requests.searches._

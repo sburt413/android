@@ -20,7 +20,7 @@ case class ByName(name: String) extends FindOption {
 
 case class ByPath(path: VirtualPath) extends FindOption {
   val param = "-path"
-  val value: String = path.singleQuoted.replace("*", "\\*")
+  val value: String = path.commandLine.replace("*", "\\*")
 }
 
 case class ByCreateDate(secondsAgo: Long) extends FindOption {
@@ -44,4 +44,14 @@ object ByModifyDate {
 case class FindDepth(maxDepth: Int) extends FindOption {
   val param: String = "-maxdepth"
   val value: String = maxDepth.toString
+}
+
+object ForRegularFiles extends FindOption {
+  val param: String = "-type"
+  val value: String = "f"
+}
+
+object ForDirectories extends FindOption {
+  val param: String = "-type"
+  val value: String = "d"
 }
