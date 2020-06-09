@@ -3,9 +3,8 @@ package com.hydrangea.android.file
 import java.io.File
 import java.nio.file.{Path, Paths}
 
+import argonaut.Argonaut._
 import argonaut._
-import Argonaut._
-import enumeratum.EnumEntry
 import org.apache.commons.exec.util.StringUtils
 
 import scala.language.implicitConversions
@@ -39,8 +38,20 @@ sealed trait VirtualPath {
     }
   def escaped: String = "\"" + raw.escape(' ').escape('&').escape('\'').escape('(').escape(')') + "\""
 
-  // adb -s 98897a364a4d574549 exec-out base64 '/storage/0123-4567/Test/Addicted/01-02- Universe In a Ball!.mp3'
-  // adb -s 98897a364a4d574549 exec-out base64 "/storage/0123-4567/Test/Addicted/01-02- Universe In a Ball"'!'".mp3" | head
+  def fileName: String = {
+    if (raw.endsWith(pathSeparator.toString)) {
+      val withoutTrailingSlash: JsonField = raw.substring(0, raw.length - 1)
+      val split: Int = withoutTrailingSlash.lastIndexOf(pathSeparator)
+      withoutTrailingSlash.substring(split + 1)
+    } else {
+      val split: Int = raw.lastIndexOf(pathSeparator)
+      if (split > 0) {
+        raw.substring(split + 1)
+      } else {
+        raw
+      }
+    }
+  }
 
   def :+(childPath: String)(implicit builder: PathBuilder[thisType]): thisType = {
     val base: String =
@@ -91,24 +102,30 @@ sealed trait VirtualPath {
 case class AndroidPath(raw: String) extends VirtualPath {
   override type thisType = AndroidPath
 
-  override def pathSeparator: Char = '/'
+  override val pathSeparator: Char = AndroidPath.pathSeparator
 
   def toWindows: WindowsPath =
     WindowsPath(raw.replace("/", "\\"))
 }
 
-object AndroidPath {}
+object AndroidPath {
+  val pathSeparator: Char = '/'
+}
 
 case class WindowsPath(raw: String) extends VirtualPath {
   override type thisType = WindowsPath
 
-  override def pathSeparator: Char = '\\'
+  override val pathSeparator: Char = WindowsPath.pathSeparator
 
   def toAndroid: AndroidPath =
-    AndroidPath(raw.replace("\\", "/"))
+    AndroidPath(raw.replace(pathSeparator, AndroidPath.pathSeparator))
 
   def toJavaFile: File = new File(raw)
   def toJavaPath: Path = Paths.get(raw)
+}
+
+object WindowsPath {
+  val pathSeparator: Char = '\\'
 }
 
 trait PathBuilder[A <: VirtualPath] {

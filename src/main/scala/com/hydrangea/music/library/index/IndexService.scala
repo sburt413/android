@@ -5,6 +5,7 @@ import java.time.{Instant, ZonedDateTime}
 import com.hydrangea.android.adb.Device
 import com.hydrangea.android.file.{AndroidPath, VirtualPath}
 import com.hydrangea.music.library._
+import com.sksamuel.elastic4s.analysis.{Analysis, _}
 import com.sksamuel.elastic4s.fields._
 import com.sksamuel.elastic4s.http.JavaClient
 import com.sksamuel.elastic4s.requests.common.RefreshPolicy
@@ -19,33 +20,85 @@ import scalaz.syntax.std.option._
 import scala.annotation.tailrec
 import scala.util.control.NonFatal
 
-// TODO: Clean closing of clients
+// TODO: Insert configs
 object IndexService {
   import com.sksamuel.elastic4s.{ElasticDsl => Elastic}
   import Elastic._
 
   type Id = String
 
+  // https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-pathhierarchy-tokenizer-examples.html
+  private[index] val CUSTOM_PATH_TREE = "custom_path_tree"
+  private[index] val CUSTOM_HIERARCHY = "custom_hierarchy"
+  private[index] val CUSTOM_PATH_TREE_REVERSED = "custom_path_tree_reversed"
+  private[index] val CUSTOM_HIERARCHY_REVERSED = "custom_hierarchy_reversed"
+
+  private[index] val PATH = "path"
+  private[index] val PATH_TREE = "tree"
+  private[index] val PATH_TREE_REVERSED = "treeReversed"
+  private[index] val HASH = "hash"
+  private[index] val LAST_MODIFIED = "lastModified"
+
+  private[index] val TAG = "tag"
+  private[index] val TITLE = "title"
+  private[index] val ALBUM = "album"
+  private[index] val ARTIST = "artist"
+  private[index] val YEAR = "year"
+  private[index] val TRACK_NUMBER = "trackNumber"
+  private[index] val TRACK_COUNT = "trackCount"
+  private[index] val DISC_NUMBER = "discNumber"
+  private[index] val DISC_COUNT = "discCount"
+
+  private[index] val RAW = "raw"
+
   private[index] val logger: Logger = LoggerFactory.getLogger(IndexService.getClass)
 
   def createIndex(device: Device): Unit =
     withClient { client =>
-      val rawField: List[ElasticField] = List(KeywordField("raw"))
+      val pathAnalyzer = CustomAnalyzer(CUSTOM_PATH_TREE, tokenizer = CUSTOM_HIERARCHY)
+      val pathAnalyzerReversed: CustomAnalyzer =
+        CustomAnalyzer(CUSTOM_PATH_TREE_REVERSED, tokenizer = CUSTOM_HIERARCHY_REVERSED)
+      val customHierarchyTokenizer: PathHierarchyTokenizer =
+        PathHierarchyTokenizer(CUSTOM_HIERARCHY, delimiter = AndroidPath.pathSeparator)
+      val customHierarchyTokenizerReversed: PathHierarchyTokenizer =
+        PathHierarchyTokenizer(CUSTOM_HIERARCHY_REVERSED, delimiter = AndroidPath.pathSeparator, reverse = true)
+      val pathAnalysis: Analysis =
+        Analysis(analyzers = List(pathAnalyzer, pathAnalyzerReversed),
+                 tokenizers = List(customHierarchyTokenizer, customHierarchyTokenizerReversed))
 
-      val pathField = TextField("path", fields = rawField)
-      val hashField = KeywordField(name = "hash")
-      val lastModifiedField = DateField("lastModified")
-      val titleField = TextField("title", fields = rawField)
-      val albumField = TextField("album", fields = rawField)
-      val artistField = TextField("artist", fields = rawField)
-      val tagField = ObjectField(name = "tag",
-                                 dynamic = Some("strict"),
-                                 enabled = Some(true),
-                                 properties = Seq(titleField, albumField, artistField))
+      val rawField: List[ElasticField] = List(KeywordField(RAW))
+
+      val pathFields: List[ElasticField] = rawField ++ List(TextField(PATH_TREE, analyzer = Some(CUSTOM_PATH_TREE)),
+                                                            TextField(PATH_TREE_REVERSED,
+                                                                      analyzer = Some(CUSTOM_PATH_TREE_REVERSED)))
+      val pathField = TextField(PATH, fields = pathFields)
+      val hashField = KeywordField(name = HASH)
+      val lastModifiedField = DateField(LAST_MODIFIED)
+      val titleField = TextField(TITLE, fields = rawField)
+      val albumField = TextField(ALBUM, fields = rawField)
+      val artistField = TextField(ARTIST, fields = rawField)
+      val yearField = IntegerField(YEAR)
+      val trackNumberField = IntegerField(TRACK_NUMBER)
+      val trackCountField = IntegerField(TRACK_COUNT)
+      val discNumberField = IntegerField(DISC_NUMBER)
+      val discCountField = IntegerField(DISC_COUNT)
+      val tagField = ObjectField(
+        name = TAG,
+        dynamic = Some("strict"),
+        enabled = Some(true),
+        properties = Seq(titleField,
+                         albumField,
+                         artistField,
+                         yearField,
+                         trackNumberField,
+                         trackCountField,
+                         discNumberField,
+                         discCountField)
+      )
       val mapping: MappingDefinition = Elastic.properties(hashField, pathField, lastModifiedField, tagField)
       val indexName: String = device.serial
       client.execute {
-        Elastic.createIndex(indexName).mapping(mapping)
+        Elastic.createIndex(indexName).analysis(pathAnalysis).mapping(mapping)
       }.await
 
       client.close()
@@ -101,14 +154,23 @@ object IndexService {
         })
 
       recordsToWrite.foreach { record =>
-        logger.info(s"Indexing record for device $device: $record")
+        logger.debug(s"Indexing record for device $device: $record")
         client.execute {
           indexInto(device.serial)
             .fields(
-              "hash" -> record.hash,
-              "path" -> record.path.raw,
-              "lastModified" -> record.lastModified,
-              "tag" -> Map("title" -> record.tag.title, "album" -> record.tag.album, "artist" -> record.tag.artist)
+              HASH -> record.hash,
+              PATH -> record.path.raw,
+              LAST_MODIFIED -> record.lastModified,
+              TAG -> Map(
+                TITLE -> record.tag.title,
+                ALBUM -> record.tag.album,
+                ARTIST -> record.tag.artist,
+                YEAR -> record.tag.year,
+                TRACK_NUMBER -> record.tag.trackNumber,
+                TRACK_COUNT -> record.tag.trackCount,
+                DISC_NUMBER -> record.tag.discNumber,
+                DISC_COUNT -> record.tag.discCount
+              )
             )
             .id(record.path.raw)
             .refresh(RefreshPolicy.Immediate)
@@ -125,8 +187,14 @@ object IndexService {
     withClient { client =>
       paths.foreach(path => {
         logger.info(s"Deleting $path from index.")
-        client.execute(deleteById(device.serial, path.raw))
+        client.execute(deleteById(device.serial, path.raw)).await
       })
+    }
+
+  def dropIndex(device: Device): Unit =
+    withClient { client =>
+      logger.info(s"Dropping index for device ${device.serial}.")
+      client.execute(deleteIndex(device.serial)).await
     }
 
   def query(device: Device, query: RecordQuery, size: Int): Seq[(Id, TrackRecord)] =
@@ -156,7 +224,6 @@ object IndexService {
     }
 
   private def connect(): ElasticClient = {
-    // new HttpHost(, 9200, "http"), new HttpHost("elasticsearch", 9300, "http")
     val elasticsearchHost = "elasticsearch"
     val elasticsearchPort = 9200
     ElasticClient(JavaClient(ElasticProperties(s"http://$elasticsearchHost:$elasticsearchPort")))
@@ -190,21 +257,31 @@ object IndexService {
     }
 
   private def toRecord(sourceMap: Map[String, Any]): TrackRecord = {
-    val hash: String = sourceMap("hash").toString
-    val path = AndroidPath(sourceMap("path").toString)
-    val lastModified = ZonedDateTime.parse(sourceMap("lastModified").toString).toInstant
+    val hash: String = sourceMap(HASH).toString
+    val path = AndroidPath(sourceMap(PATH).toString)
+    val lastModified = ZonedDateTime.parse(sourceMap(LAST_MODIFIED).toString).toInstant
 
-    val tagMap: Map[String, String] = sourceMap("tag").asInstanceOf[Map[String, String]]
-    val title: String = tagMap("title")
-    val album: String = tagMap("album")
-    val artist: String = tagMap("artist")
+    val tagMap: Map[String, String] = sourceMap(TAG).asInstanceOf[Map[String, String]]
+    val title: String = tagMap(TITLE)
+    val album: String = tagMap(ALBUM)
+    val artist: String = tagMap(ARTIST)
+    val year: Option[Int] = tagMap.get(YEAR).map(_.toInt)
+    val trackNumber: Option[Int] = tagMap.get(TRACK_NUMBER).map(_.toInt)
+    val trackCount: Option[Int] = tagMap.get(TRACK_COUNT).map(_.toInt)
+    val discNumber: Option[Int] = tagMap.get(DISC_NUMBER).map(_.toInt)
+    val discCount: Option[Int] = tagMap.get(DISC_COUNT).map(_.toInt)
 
-    TrackRecord(hash, path, lastModified, Tag(title, album, artist))
+    TrackRecord(hash,
+                path,
+                lastModified,
+                Tag(title, album, artist, year, trackNumber, trackCount, discNumber, discCount))
   }
 }
 
 object QueryBuilder {
+  import IndexService._
   import com.sksamuel.elastic4s.ElasticDsl._
+
   @tailrec
   def toElasticsearch(recordQuery: RecordQuery): Query =
     recordQuery match {
@@ -218,19 +295,23 @@ object QueryBuilder {
       case all: AllOf => toElasticsearch(all)
       case any: AnyOf => toElasticsearch(any)
       case PathQuery(path, raw) =>
-        val field: String = if (raw) "path.raw" else "path"
+        val field: String = if (raw) s"$PATH.$RAW" else PATH
         matchQuery(field, path.raw).operator("AND")
-      case HashQuery(hash)                  => matchQuery("hash", hash)
-      case LastUpdatedBefore(when: Instant) => rangeQuery("lastModified").lt(when.toEpochMilli)
-      case LastUpdatedAfter(when: Instant)  => rangeQuery("lastModified").gt(when.toEpochMilli)
+      case SubPathQuery(path, raw)          => termQuery(s"$PATH.$PATH_TREE", path.raw)
+      case HashQuery(hash)                  => matchQuery(HASH, hash)
+      case LastUpdatedBefore(when: Instant) => rangeQuery(LAST_MODIFIED).lt(when.toEpochMilli)
+      case LastUpdatedAfter(when: Instant)  => rangeQuery(LAST_MODIFIED).gt(when.toEpochMilli)
       case TitleQuery(title, raw) =>
-        val field: String = if (raw) "tag.title.raw" else "tag.title"
+        val field: String = if (raw) s"$TAG.$TITLE.$RAW" else s"$TAG.$TITLE"
         matchQuery(field, title).operator("AND")
       case AlbumQuery(album, raw) =>
-        val field: String = if (raw) "tag.album.raw" else "tag.album"
+        val field: String = if (raw) s"$TAG.$ALBUM.$RAW" else s"$TAG.$ALBUM"
         matchQuery(field, album).operator("AND")
       case ArtistQuery(artist, raw) =>
-        val field: String = if (raw) "tag.artist.raw" else "tag.artist"
+        val field: String = if (raw) s"$TAG.$ARTIST.$RAW" else s"$TAG.$ARTIST"
         matchQuery(field, artist).operator("AND")
+      case YearQuery(year, raw) =>
+        val field: String = if (raw) s"$TAG.$YEAR.$RAW" else s"$RAW.$YEAR"
+        matchQuery(field, year).operator("AND")
     }
 }

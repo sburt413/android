@@ -52,7 +52,7 @@ class ADBProcess(args: Seq[String],
     * @return a function that waits for this process and output to terminate
     */
   def runAsync(): WaitFor = {
-    logger.info("APACHE EXECUTING COMMAND: " + commandLine.toString)
+    logger.debug("APACHE EXECUTING COMMAND: " + commandLine.toString)
     stdoutListener.start()
     stderrListener.start()
     executor.getStreamHandler.start()
@@ -69,47 +69,6 @@ class ADBProcess(args: Seq[String],
 
       stdoutListener.join()
       stderrListener.join()
-
-      exitValue
-    }
-
-    waitFor
-  }
-
-  def run(): Int = {
-    val waitFor: WaitFor = runAsync()
-    waitFor()
-  }
-}
-
-class ADBProcess2(args: Seq[String], outputFile: Path, timeout: Option[Timeout] = None) {
-  import ADBProcess._
-
-  val commandLine: CommandLine = buildCommandLine(args)
-
-  val executor = new DefaultExecutor
-  executor.setExitValue(0)
-
-  private val outputFileStream = new BufferedOutputStream(new FileOutputStream(outputFile.toFile))
-  executor.setStreamHandler(new PumpStreamHandler(outputFileStream, System.err))
-  timeout.foreach(maxRuntime => {
-    val watchdog = new ExecuteWatchdog(maxRuntime.inMills)
-    executor.setWatchdog(watchdog)
-  })
-
-  def runAsync(): WaitFor = {
-    logger.info("APACHE EXECUTING COMMAND: " + commandLine.toString)
-    executor.getStreamHandler.start()
-
-    val waitFor: WaitFor = () => {
-      val exitValue: Int = executor.execute(commandLine)
-      if (exitValue != 0) {
-        logger.warn(s"NON ZERO EXIT VALUE ($exitValue) for $args")
-      } else {
-        logger.trace("NORMAL PROCESS TERMINATION")
-      }
-
-      executor.getStreamHandler.stop()
 
       exitValue
     }

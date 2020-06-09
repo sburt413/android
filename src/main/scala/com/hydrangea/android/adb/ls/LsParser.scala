@@ -4,10 +4,13 @@ import java.text.SimpleDateFormat
 import java.time.Instant
 
 import com.hydrangea.android.file.{AndroidPath, VirtualPath}
+import org.slf4j.Logger
 
 import scala.annotation.tailrec
 
 object LsParser {
+  private val logger: Logger = org.slf4j.LoggerFactory.getLogger(LsParser.getClass)
+
   // [2020-05-09]T[15:51]
   private val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
 
@@ -19,11 +22,6 @@ object LsParser {
   //  drwxrwx--x   2 root sdcard_rw 131072 2018-11-02 08:16:16.000000000 -0400 Fire\ by\ the\ Silos/
   //  drwxrwx--x   2 root sdcard_rw 131072 2018-05-01 15:22:52.000000000 -0400 Ode\ to\ the\ Author/
   //
-  //  /storage/0123-4567/Music/Toska/Fire by the Silos:
-  //  total 126848
-  //  drwxrwx--x 2 root sdcard_rw   131072 2018-11-02 08:16:16.000000000 -0400 ./
-  //  drwxrwx--x 5 root sdcard_rw   131072 2018-11-02 08:16:10.000000000 -0400 ../
-  //  -rwxrwx--x 1 root sdcard_rw  5187618 2018-11-02 08:16:10.000000000 -0400 cover.jpg
 
   // (subpath, fileName, modified time)
   def parseDirectories(output: Seq[String]): Seq[(AndroidPath, String, Instant)] = {
@@ -75,7 +73,7 @@ object LsParser {
       .map(line => {
         // Permissions, Number, Owner, Group, Size, Modify Date, Modify Time, File Name
         val columns: Seq[String] = line.split("\\s+", 9).toSeq
-        println(s"Parsing $columns")
+        logger.trace(s"Parsing $columns")
         val fileName: String = columns(8)
         // 2019-02-11 22:05:37.121626843 -0500
         // Truncate to millisecond precision

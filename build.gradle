@@ -20,6 +20,7 @@ dependencies {
     compile group: 'com.typesafe', name: 'config', version: '1.4.0'
     compile group: 'com.mpatric', name: 'mp3agic', version: '0.9.1'
     compile group: 'org.apache.tika', name: 'tika-parsers', version: '1.24.1'
+    compile group: 'de.u-mass', name: 'lastfm-java', version: '0.1.2'
     compile group: 'org.scalaz', name: 'scalaz-core_2.13', version: '7.3.0'
     compile group: 'commons-io', name: 'commons-io', version: '2.6'
     compile group: 'org.apache.commons', name: 'commons-exec', version: '1.3'

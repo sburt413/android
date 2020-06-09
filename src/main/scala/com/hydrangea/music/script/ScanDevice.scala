@@ -25,7 +25,7 @@ object ScanDevice extends App {
 
   val index: DeviceIndexRecord =
     DeviceIndexRecordService
-      .getIndexRecordForDevice(device)
+      .getRecordForDevice(device)
       .getOrElse(throw new IllegalArgumentException(s"No index record exists for device (${device.serial})"))
 
   device.withCommandLine() { commandLine =>
@@ -42,7 +42,7 @@ object ScanDevice extends App {
         .list(musicDirectoryPath)
         .flatMap(_.to[AndroidDirectory])
         .map(dir => {
-          val fileCount: Int = commandLine.countFiles(dir.path).count(VirtualPath.mp3Filter)
+          val fileCount: Int = commandLine.findRegularFiles(dir.path).count(VirtualPath.mp3Filter)
           val lastModify: Instant = commandLine.mostRecentUpdate(dir.path).getOrElse(dir.modifyTime)
           RecordCandidate(dir.path, fileCount, lastModify)
         })
@@ -50,6 +50,6 @@ object ScanDevice extends App {
 
     val (updatedIndex, deletedRecords) = index.reindex(artistFolders)
     IndexService.remove(device, deletedRecords.map(_.directoryPath))
-    DeviceIndexRecordService.writeIndex(device, updatedIndex)
+    DeviceIndexRecordService.writeRecord(device, updatedIndex)
   }
 }

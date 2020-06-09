@@ -48,6 +48,8 @@ object AnyOf {
 
 sealed trait RecordQueryOperand extends RecordQuery
 
+case class SubPathQuery(path: VirtualPath, raw: Boolean = true) extends RecordQueryOperand
+
 case class PathQuery(path: VirtualPath, raw: Boolean = true) extends RecordQueryOperand
 
 case class HashQuery(hash: String) extends RecordQueryOperand
@@ -61,3 +63,5 @@ case class TitleQuery(title: String, raw: Boolean = true) extends RecordQueryOpe
 case class AlbumQuery(album: String, raw: Boolean = true) extends RecordQueryOperand
 
 case class ArtistQuery(artist: String, raw: Boolean = true) extends RecordQueryOperand
+
+case class YearQuery(artist: String, raw: Boolean = true) extends RecordQueryOperand

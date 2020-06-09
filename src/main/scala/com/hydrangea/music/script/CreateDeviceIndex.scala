@@ -33,7 +33,7 @@ object CreateDeviceIndex extends App {
           .list(musicDirectoryPath)
           .flatMap(_.to[AndroidDirectory])
           .map(dir => {
-            val fileCount: Int = commandLine.countFiles(dir.path).count(VirtualPath.mp3Filter)
+            val fileCount: Int = commandLine.findRegularFiles(dir.path).count(VirtualPath.mp3Filter)
             val lastModify: Instant = commandLine.mostRecentUpdate(dir.path).getOrElse(dir.modifyTime)
             RecordCandidate(dir.path, fileCount, lastModify)
           })
@@ -50,7 +50,7 @@ object CreateDeviceIndex extends App {
   val device: Device = cliArgs.device.map(findDevice).getOrElse(ADB.firstDevice)
 
   val indexRecord: DeviceIndexRecord = createIndexRecord(device)
-  DeviceIndexRecordService.writeIndex(device, indexRecord)
+  DeviceIndexRecordService.writeRecord(device, indexRecord)
   logger.info(s"Creating elasticsearch index for ${device.serial}")
   IndexService.createIndex(device)
 }

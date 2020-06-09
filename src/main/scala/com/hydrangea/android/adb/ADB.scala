@@ -1,19 +1,39 @@
 package com.hydrangea.android.adb
 
 import java.nio.charset.Charset
-import java.nio.file.Path
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import com.hydrangea.android.adb.ADBProcess.WaitFor
-import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForRegularFiles}
+import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForDirectories, ForRegularFiles}
 import com.hydrangea.android.adb.ls.LsParser
 import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
 import org.slf4j.{Logger, LoggerFactory}
 
+/**
+  * An Android device capable of of communicating with the program via ADB.
+  *
+  * @param serial the serial number of the device
+  */
 case class Device(serial: String) {
+
+  /**
+    * Returns an abstract [[ADBCommandLine]] for communicating with the device.
+    *
+    * @param timeout the timeout for any commands run on the commandline
+    * @return an abstract [[ADBCommandLine]] for communicating with the device
+    */
   def commandline(timeout: Timeout = Device.defaultTimeout): ADBCommandLine = new ADBCommandLine(this, timeout)
+
+  /**
+    * Executes the given function, passing it a commandline.
+    *
+    * @param timeout the timeout for any commands run on the commandline
+    * @param fn the function to execute using the terminal
+    * @tparam A the type of output from the function
+    * @return the result of running the function
+    */
   def withCommandLine[A](timeout: Timeout = Device.defaultTimeout)(fn: ADBCommandLine => A): A =
     fn(new ADBCommandLine(this, timeout))
 }
@@ -22,6 +42,9 @@ object Device {
   val defaultTimeout: Timeout = Timeout(10, TimeUnit.MINUTES)
 }
 
+/**
+  * The entry point for accessing devices for ADB (Android Debug Bridge).
+  */
 object ADB {
   private[adb] val logger: Logger = LoggerFactory.getLogger(classOf[Device])
 
@@ -35,6 +58,10 @@ object ADB {
     stdout.tail.map(_.split("\\s+")(0)).map(serial => Device(serial))
   }
 
+  /**
+    * Returns the first device listed by the `adb devices` command.  This may be arbitrary if multiple devices are reachable.
+    * @return the first device listed by the `adb` command
+    */
   def firstDevice: Device = {
     val device: Device = devices.headOption.getOrElse(throw new IllegalStateException("No Android devices found"))
     logger.info(s"Using device: $device")
@@ -42,31 +69,61 @@ object ADB {
   }
 }
 
+/**
+  * An abstraction over running `adb`.  Most commands are bashed on underlying shell commands, with built in processing
+  * of the results.
+  *
+  * @param device  the device to run the commands on
+  * @param timeout the maximum runtime for a single underlying command
+  */
 class ADBCommandLine(device: Device, timeout: Timeout) {
   import ADBCommandLine.logger
 
-  /*
-  val toEval = s"'ls -la ${path.raw.replace(" ", "\\ ").replace("!", "\\!")}'"
-      val cmd = "\"" + "eval " + toEval + "\""
-      val (_, output, _) = commandLine.execOutCmdAndParse(cmd)
-   */
-
-//  private def evalWrap(command: Seq[String]): Seq[String] = {
-//    Seq("eval") ++ command
-////    "\"" + s"eval '${command.mkString(" ")}'" + "\""
-//  }
-
+  /**
+    * Wraps the given command in an `adb` command for this commandline's device.
+    *
+    * @param command the command to run through adb
+    * @return the wrapped command
+    */
   private def adbCmd(command: String*): Seq[String] = Seq("adb", "-s", device.serial) ++ command
 
+  /**
+    * Wraps the given command in `adb shell` command for this commandline's device.
+    *
+    * @param command the shell command to run through adb
+    * @return the wrapped command
+    */
   private def shellCmd(command: String*): Seq[String] = Seq("shell") ++ command
 
+  /**
+    * Wraps the given command in `adb exec-out` command for this commandline's device.  This is suitable for binary
+    * output.
+    *
+    * @param command the command to run through adb
+    * @return the wrapped command
+    */
   private def execOutCmd(command: String*): Seq[String] = Seq("exec-out") ++ command
 
+  /**
+    * Executes the given command through `adb` and reads the stdout and stderr of the process into collections of
+    * lines.
+    *
+    * @param command the command to run
+    * @return in order: the exit code, parsed stdout and parsed stderr
+    */
   private def runAndParse(command: Seq[String]): (Int, Seq[String], Seq[String]) = {
     val args: Seq[String] = adbCmd(command: _*)
     ADBProcess.runAndParse(timeout, args: _*)
   }
 
+  /**
+    * Executes the given command through `adb` and pipes the output to the given readers.
+    *
+    * @param command      the command to run
+    * @param stdoutReader the builder to read stdout
+    * @param stderrReader the builder to read stderr
+    * @return the exit code for the process
+    */
   private def run(command: Seq[String],
                   stdoutReader: ADBProcessListenerBuilder,
                   stderrReader: ADBProcessListenerBuilder): Int = {
@@ -74,11 +131,15 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
     ADBProcess(args, stdoutReader, stderrReader, Some(timeout)).run()
   }
 
-  def run(command: Seq[String], destPath: Path): Int = {
-    val args: Seq[String] = adbCmd(command: _*)
-    new ADBProcess2(args, destPath, Some(timeout)).run()
-  }
-
+  /**
+    * Executes the given command in an asynchronous manner.  A method will be returned that can be used to wait for the
+    *  process and IO threads to complete.
+    *
+    * @param command      the command to run
+    * @param stdoutReader the builder to read stdout
+    * @param stderrReader the builder to read stderr
+    * @return a function that will wait for the process, stdout and stderr thread to join
+    */
   private def runAsync(command: Seq[String],
                        stdoutReader: ADBProcessListenerBuilder,
                        stderrReader: ADBProcessListenerBuilder): WaitFor = {
@@ -86,32 +147,12 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
     ADBProcess(args, stdoutReader, stderrReader, Some(timeout)).runAsync()
   }
 
-  //  private def cmd(command: String*): (Int, InputStream, InputStream) = {
-//    val args: Seq[String] = Seq("adb", "-s", device.serial) ++ command
-//    Command.run(timeout)(args: _*)
-//  }
-//
-
-//
-
-//
-//  private def execOutCmd(command: String*): (Int, InputStream, InputStream) = {
-//    cmd(Seq("exec-out") ++ command: _*)
-//  }
-//
-//  // TODO: DELETE
-//  def execOutCmdAndParse(command: String*): (Int, Seq[String], Seq[String]) = {
-//    cmdAndParse(Seq("exec-out") ++ command: _*)
-//  }
-
-  private def buildAndroidFile(path: AndroidPath, lastModified: Instant): AndroidFile = {
-    if (path.isDirectoryPath) {
-      AndroidDirectory(path, lastModified)
-    } else {
-      AndroidRegularFile(path, lastModified)
-    }
-  }
-
+  /**
+    * Runs an underlying `ls` command and returns the output as files.
+    *
+    * @param directoryPath the path to the directory to list
+    * @return the files immediately in the directory
+    */
   def list(directoryPath: AndroidPath): Seq[AndroidFile] = {
     val (_, listing, err) = runAndParse(shellCmd("ls", "-pla", "--full-time", directoryPath.commandLine))
     if (err.nonEmpty) {
@@ -120,9 +161,15 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
 
     for {
       (fileName, lastModified) <- LsParser.parseDirectory(listing)
-    } yield buildAndroidFile(directoryPath :+ fileName, lastModified)
+    } yield AndroidFile(directoryPath :+ fileName, lastModified)
   }
 
+  /**
+    * Run and underlying recursive `ls` coomand and returns all contained files as output.
+    *
+    * @param directoryPath the path to the directory to list
+    * @return all files and folders in the given folder's directory tree
+    */
   def listRecursive(directoryPath: AndroidPath): Seq[AndroidFile] = {
     val (_, listings, err) = runAndParse(shellCmd("ls", "-Rpla", "--full-time", directoryPath.commandLine))
     if (err.nonEmpty) {
@@ -131,21 +178,46 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
 
     for {
       (path, fileName, lastModified) <- LsParser.parseDirectories(listings)
-    } yield buildAndroidFile(path :+ fileName, lastModified)
+    } yield AndroidFile(path :+ fileName, lastModified)
   }
 
-  def find(directoryPath: AndroidPath, options: FindOption*): Seq[AndroidPath] =
-    findCmd(directoryPath, options.flatMap(opt => Seq(opt.param, opt.value)))
+  /**
+    * Runs an underlying `find` command with the given options, returning the found values as paths.
+    *
+    * @param directoryPath the path to the directory to find from
+    * @param option0 the criteria to apply to the find command
+    * @param options any additional criteria to add to the find command
+    * @return all paths found by the command
+    */
+  def find(directoryPath: AndroidPath, option0: FindOption, options: FindOption*): Seq[AndroidPath] =
+    findCmd(directoryPath, (Seq(option0) ++ options).flatMap(opt => Seq(opt.param, opt.value)))
 
-  def findDirectories(directoryPath: AndroidPath, options: FindOption*): Seq[AndroidPath] = {
-    val directoryType = Seq("-type", "d")
-    val findOpts: Seq[String] = options.flatMap(opt => Seq(opt.param, opt.value))
-    findCmd(directoryPath, directoryType ++ findOpts)
-  }
+  /**
+    * Runs a find command with directories type already applied.
+    *
+    * @param directoryPath the path to the directory to find from
+    * @param options any additional criteria to add to the find command
+    * @return all paths found by the command
+    */
+  def findDirectories(directoryPath: AndroidPath, options: FindOption*): Seq[AndroidPath] =
+    find(directoryPath, ForDirectories, options: _*)
 
-  def countFiles(directoryPath: AndroidPath): Seq[AndroidPath] =
-    findCmd(directoryPath, Seq(ForRegularFiles.param, ForRegularFiles.value))
+  /**
+    * Runs a find command with regular files type already applied.
+    *
+    * @param directoryPath the path to the directory to find from
+    * @return all paths found by the command
+    */
+  def findRegularFiles(directoryPath: AndroidPath): Seq[AndroidPath] =
+    find(directoryPath, ForRegularFiles)
 
+  /**
+    * Runs the `find` command in an ADB shell and parses [[AndroidPath]]s from the output.
+    *
+    * @param directoryPath the path to the directory to find from
+    * @param params        the commandline parameters to apply
+    * @return [[AndroidPath]]s found by the shell command
+    */
   private def findCmd(directoryPath: AndroidPath, params: Seq[String]): Seq[AndroidPath] = {
     val args: Seq[String] = Seq("find") ++ Seq(directoryPath.commandLine) ++ params
     val (_, found, err) = runAndParse(shellCmd(args: _*))
@@ -156,6 +228,12 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
     found.map(AndroidPath.apply)
   }
 
+  /**
+    * Runs file status (stat) on a given [[AndroidPath]] and returns the [[AndroidFile]] found.
+    *
+    * @param path the path to check
+    * @return the file, if present; otherwise [[None]] if no file is found
+    */
   def stat(path: AndroidPath): Option[AndroidFile] = {
     // adb -d shell stat -c '%Y %F' '/storage/0123-4567/Music/'
     val args = Seq(s"stat -c '%Y %F' ${path.commandLine}")
@@ -182,18 +260,27 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
       })
   }
 
+  /**
+    * Runs stat, considering the absence of the file to be an exception.
+    *
+    * @param path the path to check
+    * @return the file, if present; otherwise throws an error
+    */
   def statOrThrow(path: AndroidPath): AndroidFile =
     stat(path).getOrElse(throw new IllegalStateException(s"No file found for path: $path"))
 
+  /**
+    * Run's ADB's native pull command on the device.  The underlying adb implementation is unreliable on Windows
+    * computers.
+    *
+    * @param sourceDirectory the directory on the device to pull from
+    * @param targetDirectory the target directory on the host computer
+    * @return a map of the file paths pulled from the device to their destination
+    */
   def pull(sourceDirectory: AndroidDirectory, targetDirectory: WindowsDirectory): Map[AndroidPath, WindowsPath] = {
-    // adb -d pull -a '/storage/0123-4567/Music/August\ Burns\ Red/' 'C:\adb'
     val args: Seq[String] = Seq("pull", "-a", sourceDirectory.path.commandLine, targetDirectory.path.commandLine)
     // For some reason the pull command spit output to the error stream
     val (_, _, output) = runAndParse(args)
-    // skipping output:
-    // 'pull: building file list...'
-    // 'x files pulled. y files skipped.'
-    // '2938 KB/s (97352327 bytes in 32.355s)'
     val fileLines: Seq[String] = output.slice(1, output.size - 2)
     fileLines
       .map(line => {
@@ -204,27 +291,16 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
         sourcePath -> destPath
       })
       .toMap
-
-//    $ adb -d pull /storage/0123-4567/Music/August\ Burns\ Red/Guardians/
-//    pull: building file list...
-//    pull: /storage/0123-4567/Music/August Burns Red/Guardians/11 - Three Fountains.mp3 -> ./11 - Three Fountains.mp3
-//    pull: /storage/0123-4567/Music/August Burns Red/Guardians/10 - Empty Heaven.mp3 -> ./10 - Empty Heaven.mp3
-//    pull: /storage/0123-4567/Music/August Burns Red/Guardians/09 - Extinct By Instinct.mp3 -> ./09 - Extinct By Instinct.mp3
-//    pull: /storage/0123-4567/Music/August Burns Red/Guardians/08 - Bloodletter.mp3 -> ./08 - Bloodletter.mp3
-//    pull: /storage/0123-4567/Music/August Burns Red/Guardians/07 - Ties That Bind.mp3 -> ./07 - Ties That Bind.mp3
-//    pull: /storage/0123-4567/Music/August Burns Red/Guardians/06 - Dismembered Memory.mp3 -> ./06 - Dismembered Memory.mp3
-//    pull: /storage/0123-4567/Music/August Burns Red/Guardians/05 - Lighthouse.mp3 -> ./05 - Lighthouse.mp3
-//    pull: /storage/0123-4567/Music/August Burns Red/Guardians/04 - Defender.mp3 -> ./04 - Defender.mp3
-//    pull: /storage/0123-4567/Music/August Burns Red/Guardians/03 - Paramount.mp3 -> ./03 - Paramount.mp3
-//    pull: /storage/0123-4567/Music/August Burns Red/Guardians/02 - Bones.mp3 -> ./02 - Bones.mp3
-//    pull: /storage/0123-4567/Music/August Burns Red/Guardians/01 - The Narrative.mp3 -> ./01 - The Narrative.mp3
-//    11 files pulled. 0 files skipped.
-//    2938 KB/s (97352327 bytes in 32.355s)
-
   }
 
+  /**
+    * Pulls a single file using ADB's native pull.  The underlying adb implementation is unreliable on Windows computers.
+    *
+    * @param source the directory on the device to pull from
+    * @param target the target directory on the host computer
+    * @return the target path if the pull was successful
+    */
   def pull(source: AndroidRegularFile, target: WindowsFile): Option[VirtualPath] = {
-    // adb -d pull -a '/storage/0123-4567/Music/August Burns Red/Guardians/02 - Bones.mp3' /cygdrive/d/adb/02\ -\ Bones.mp3
     // For some reason the pull command spits its output to the error stream
     val command = Seq("pull", "-a", source.path.commandLine, target.path.commandLine)
     val (_, _, output) = runAndParse(command)
@@ -232,6 +308,12 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
     Option(output.head).filter(_.contains("bytes in")).map(_ => target.path)
   }
 
+  /**
+    * Runs a hash on the file at the given path using sha1.
+    *
+    * @param path the path to the file to hash
+    * @return the sha1 hash of the file
+    */
   def sha1sum(path: AndroidPath): String = {
     val (_, output, err) = runAndParse(shellCmd("sha1sum", path.commandLine))
     if (err.nonEmpty) {
@@ -241,6 +323,12 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
     output.head.split("\\s+")(0)
   }
 
+  /**
+    * Performs a directory by directly recursive listing of all files under the given path.
+    *
+    * @param path the path to search under
+    * @return all files under the given path
+    */
   def scan(path: AndroidPath): Seq[AndroidFile] = {
     val directories: Seq[AndroidPath] = findDirectories(path, FindDepth(1))
     directories.indices.flatMap { index =>
@@ -253,13 +341,19 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
     }
   }
 
+  /**
+    * Return the time of the most recently updated file under that given path.
+    *
+    * @param path the path to search under
+    * @return the most recently updated, if any files exist under the path
+    */
   def mostRecentUpdate(path: AndroidPath): Option[Instant] = {
     val removeParentDirectories = "grep -v '\\.\\./'"
     val topEntry = "tail -n 1"
     val (_, output, err) =
       runAndParse(shellCmd("ls", "-Rplart", "--full-time", path.escaped, "|", removeParentDirectories, "|", topEntry))
     if (err.nonEmpty) {
-      throw new RuntimeException("Error running `sha1sum`: " + err.mkString("\n"))
+      throw new RuntimeException("Error running mostRecentUpdate: " + err.mkString("\n"))
     }
 
     LsParser
@@ -271,40 +365,20 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
       })
   }
 
-  def transferViaBase64(path: AndroidPath,
-                        base64StdoutListener: ADBProcessListenerBuilder,
-                        stderrListener: ADBProcessListenerBuilder = ADBProcessListener.pipedBuilder(System.err)): Int =
-    run(execOutCmd("base64", path.quoted), base64StdoutListener, stderrListener)
-
+  /**
+    * Performs `cat` on the file at the given path.  The output of the file will be piped to a listener built by
+    * stdoutListener.
+    *
+    * @param path           the file path to print
+    * @param stdoutListener the builder for the process to handle the file's contents
+    * @param stderrListener the builder for the stderr of the process
+    * @return the exit code of the `cat` process
+    */
   def transferViaCat(path: AndroidPath,
                      stdoutListener: ADBProcessListenerBuilder,
                      stderrListener: ADBProcessListenerBuilder = ADBProcessListener.pipedBuilder(System.err)): Int =
     run(execOutCmd("cat", path.quoted), stdoutListener, stderrListener)
 
-  def transferViaCat2(srcPath: AndroidPath, destPath: Path): Int =
-    run(execOutCmd("cat", srcPath.quoted), destPath)
-
-//  def transferViaBase64(path: AndroidPath, dest: WindowsPath, lineSeparator: String = LineSeparator.Windows): Unit = {
-//    // `exec-out` has differing quoting requirements than `shell`
-//    val (_, stdout, stderr) = shellCmd("eval", s"base64 ${path.raw}")
-//    if (stderr.nonEmpty) {
-//      throw new RuntimeException("Error running cat transfer: " + stderr.mkString("\n"))
-//    }
-//
-//    println(stdout)
-//  }
-//
-//  def transferViaBase64Tunnel(path: AndroidPath, lineSeparator: String = LineSeparator.Windows): InputStream = {
-//    // `exec-out` has differing quoting requirements than `shell`
-//    val (_, encodedFileStream, stderr) = execOutCmd("echo", "base64", path.quoted)
-//    val stderrLines: Seq[String] = Command.toLines(stderr, lineSeparator)
-//    if (stderrLines.nonEmpty) {
-//      throw new RuntimeException("Error running base64 transfer: " + stderrLines.mkString("\n"))
-//    }
-//
-//////    Base64.getDecoder.wrap(encodedFileStream)
-//    encodedFileStream
-//  }
 }
 
 object ADBCommandLine {

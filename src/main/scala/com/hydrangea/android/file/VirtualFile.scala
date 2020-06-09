@@ -43,6 +43,16 @@ sealed trait AndroidFile extends VirtualFile with AndroidFileCodecs {
   def path: AndroidPath
 }
 
+object AndroidFile {
+  def apply(path: AndroidPath, lastModified: Instant): AndroidFile = {
+    if (path.isDirectoryPath) {
+      AndroidDirectory(path, lastModified)
+    } else {
+      AndroidRegularFile(path, lastModified)
+    }
+  }
+}
+
 case class AndroidDirectory(path: AndroidPath, modifyTime: Instant) extends AndroidFile
 
 object AndroidDirectory extends AndroidDirectoryCodecs

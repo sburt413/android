@@ -8,6 +8,7 @@ import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.library.index.{DeviceIndexRecord, DeviceIndexRecordService, RecordCandidate}
+import com.hydrangea.music.library.repository.RepositoryService
 import com.hydrangea.music.tagger.TikaAndroidTagger
 
 object TestApp {
@@ -32,9 +33,11 @@ object TestApp {
     "/storage/0123-4567/Music/Generation Axe/The Guitars That Destroyed The World_ Li/06 Whipping Post [Live].mp3".toAndroidPath
 
   def main(args: Array[String]): Unit = {
-    device.withCommandLine() { commandLine =>
-      commandLine.sha1sum("/storage/0123-4567/Music/Aerosmith/Get Your Wings/06 Train Kept A Rollin'.mp3".toAndroidPath)
-    }
+//    device.withCommandLine() { commandLine =>
+//      commandLine.sha1sum("/storage/0123-4567/Music/Aerosmith/Get Your Wings/06 Train Kept A Rollin'.mp3".toAndroidPath)
+//    }
+
+    RepositoryService.readRepository("\\\\BLUEJAY\\Music\\".toWindowsPath)
   }
 
   def tag() = {

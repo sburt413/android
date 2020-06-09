@@ -5,7 +5,17 @@
         </encoder>
     </appender>
 
-    <root level="trace">
+    <root level="warn">
         <appender-ref ref="STDOUT" />
     </root>
+
+    <logger name="com.hydrangea" level="info" additivity="false">
+        <appender-ref ref="STDOUT" />
+    </logger>
+
+    <logger name="com.hydrangea.music.tagger" level="debug" additivity="false">
+        <appender-ref ref="STDOUT" />
+    </logger>
+
+
 </configuration>

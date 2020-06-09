@@ -15,8 +15,8 @@ import scala.jdk.CollectionConverters._
 object DeviceIndexRecordService {
   private val logger: Logger = org.slf4j.LoggerFactory.getLogger(DeviceIndexRecordService.getClass)
 
-  def getIndexRecordForDevice(device: Device): Option[DeviceIndexRecord] =
-    getDeviceIndex(device)
+  def getRecordForDevice(device: Device): Option[DeviceIndexRecord] =
+    getRecord(device)
       .flatMap(index => {
         val fileInput: InputStream = Files.newInputStream(index)
         val fileContents: String = IOUtils.readLines(fileInput, Charset.defaultCharset()).asScala.mkString(" ")
@@ -26,22 +26,32 @@ object DeviceIndexRecordService {
         Parse.decodeOption[DeviceIndexRecord](fileContents)
       })
 
-  def writeIndex(device: Device, record: DeviceIndexRecord): Unit = {
-    val path: Path = getOrCreateDeviceIndex(device)
-    logger.info(s"Writing index to $path")
+  def writeRecord(device: Device, record: DeviceIndexRecord): Unit = {
+    val path: Path = getOrCreateRecord(device)
+    logger.info(s"Writing record to $path")
     val fileOutput: BufferedWriter = Files.newBufferedWriter(path)
     fileOutput.write(record.asJson.toString())
     fileOutput.close()
   }
 
-  private def getDeviceIndex(device: Device): Option[Path] =
-    Option(getDeviceIndexName(device)).filter(path => Files.exists(path))
+  def deleteRecord(device: Device): Unit = {
+    val path: Path = getOrCreateRecord(device)
+    logger.info(s"Deleting record at $path")
+    if (Files.exists(path)) {
+      Files.delete(path)
+    } else {
+      logger.warn(s"No record exists for device ${device.serial}")
+    }
+  }
 
-  private def getOrCreateDeviceIndex(device: Device): Path =
-    getDeviceIndex(device).getOrElse(Files.createFile(getDeviceIndexName(device)))
+  private def getRecord(device: Device): Option[Path] =
+    Option(getRecordName(device)).filter(path => Files.exists(path))
 
-  private def getIndexFolder: Path = {
-    val indexPath = Paths.get("index")
+  private def getOrCreateRecord(device: Device): Path =
+    getRecord(device).getOrElse(Files.createFile(getRecordName(device)))
+
+  private def getRecordFolder: Path = {
+    val indexPath = Paths.get("record")
     if (!Files.exists(indexPath)) {
       Files.createDirectory(indexPath)
     }
@@ -49,6 +59,6 @@ object DeviceIndexRecordService {
     indexPath
   }
 
-  private def getDeviceIndexName(device: Device): Path =
-    Paths.get(getIndexFolder.toString, s"${device.serial}-index-record.json")
+  private def getRecordName(device: Device): Path =
+    Paths.get(getRecordFolder.toString, s"${device.serial}-index-record.json")
 }

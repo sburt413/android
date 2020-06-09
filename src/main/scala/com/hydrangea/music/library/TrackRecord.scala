@@ -8,11 +8,23 @@ import com.mpatric.mp3agic.ID3v2
 /**
   * Tag information for an mp3 track.
   *
-  * @param title        the title of the track
-  * @param album        the album the track is from
-  * @param artist       the artist of the track
+  * @param title       the title of the track
+  * @param album       the album the track is from
+  * @param artist      the artist of the track
+  * @param year        the release year of the track, if known
+  * @param trackNumber the track number of track in the album, if known
+  * @param trackCount  the total number of tracks for the album, if known
+  * @param discNumber  the the disc number in the album, if known
+  * @param discCount   the number of discs in the album
   */
-case class Tag(title: String, album: String, artist: String)
+case class Tag(title: String,
+               album: String,
+               artist: String,
+               year: Option[Int],
+               trackNumber: Option[Int],
+               trackCount: Option[Int],
+               discNumber: Option[Int],
+               discCount: Option[Int])
 
 /**
   * A record of an mp3 track.
@@ -28,13 +40,23 @@ object TrackRecord {
   def apply(hash: String, file: VirtualFile, tag: Tag): TrackRecord =
     TrackRecord(hash, file.path, file.modifyTime, tag)
 
-  def apply(hash: String, file: VirtualFile, tag: ID3v2): TrackRecord =
-    TrackRecord(hash, file.path, file.modifyTime, Tag(tag.getTitle, tag.getAlbum, tag.getArtist))
+  def apply(hash: String, file: VirtualFile, tag: ID3v2): TrackRecord = {
+    val year: Option[Int] = Option(tag.getYear).map(_.toInt)
+    val (trackNumber, trackCount) = Option(tag.getTrack).filterNot(_.isEmpty).map(slashSplit).getOrElse((None, None))
+    val (discNumber, discCount) =
+      Option(tag.getPartOfSet).filterNot(_.isEmpty).map(slashSplit).getOrElse((None, None))
+    TrackRecord(hash,
+                file.path,
+                file.modifyTime,
+                Tag(tag.getTitle, tag.getAlbum, tag.getArtist, year, trackNumber, trackCount, discNumber, discCount))
+  }
 
-//  def fileDiff(trackRecord0: TrackRecord, trackRecords: TrackRecord*): DiffResult = {
-//    Seq(trackRecord0) ++ trackRecords
-//
-//    val sameModifiedDate: Boolean = trackRecords.map(_.lastModified).distinct.size == 1
-//    sameModifiedDate
-//  }
+  def slashSplit(value: String): (Option[Int], Option[Int]) = {
+    if (value.contains('/')) {
+      val (number, total) = value.splitAt(value.indexOf('/'))
+      (Some(number.toInt), Some(total.substring(1).toInt))
+    } else {
+      (Some(value.toInt), None)
+    }
+  }
 }
