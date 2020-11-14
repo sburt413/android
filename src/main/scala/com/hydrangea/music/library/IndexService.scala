@@ -1,14 +1,14 @@
-package com.hydrangea.music.library.index
+package com.hydrangea.music.library
 
 import java.time.{Instant, ZonedDateTime}
 
-import com.hydrangea.android.adb.Device
 import com.hydrangea.android.file.{AndroidPath, VirtualPath}
-import com.hydrangea.music.library._
+import com.hydrangea.music.library.device._
 import com.sksamuel.elastic4s.analysis.{Analysis, _}
 import com.sksamuel.elastic4s.fields._
 import com.sksamuel.elastic4s.http.JavaClient
 import com.sksamuel.elastic4s.requests.common.RefreshPolicy
+import com.sksamuel.elastic4s.requests.indexes.{CreateIndexResponse, IndexResponse}
 import com.sksamuel.elastic4s.requests.mappings.MappingDefinition
 import com.sksamuel.elastic4s.requests.searches.queries.Query
 import com.sksamuel.elastic4s.requests.searches.queries.matches.MatchAllQuery
@@ -28,32 +28,35 @@ object IndexService {
   type Id = String
 
   // https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-pathhierarchy-tokenizer-examples.html
-  private[index] val CUSTOM_PATH_TREE = "custom_path_tree"
-  private[index] val CUSTOM_HIERARCHY = "custom_hierarchy"
-  private[index] val CUSTOM_PATH_TREE_REVERSED = "custom_path_tree_reversed"
-  private[index] val CUSTOM_HIERARCHY_REVERSED = "custom_hierarchy_reversed"
+  private[library] val CUSTOM_PATH_TREE = "custom_path_tree"
+  private[library] val CUSTOM_HIERARCHY = "custom_hierarchy"
+  private[library] val CUSTOM_PATH_TREE_REVERSED = "custom_path_tree_reversed"
+  private[library] val CUSTOM_HIERARCHY_REVERSED = "custom_hierarchy_reversed"
 
-  private[index] val PATH = "path"
-  private[index] val PATH_TREE = "tree"
-  private[index] val PATH_TREE_REVERSED = "treeReversed"
-  private[index] val HASH = "hash"
-  private[index] val LAST_MODIFIED = "lastModified"
+  private[library] val SANITIZER = "sanitizer"
 
-  private[index] val TAG = "tag"
-  private[index] val TITLE = "title"
-  private[index] val ALBUM = "album"
-  private[index] val ARTIST = "artist"
-  private[index] val YEAR = "year"
-  private[index] val TRACK_NUMBER = "trackNumber"
-  private[index] val TRACK_COUNT = "trackCount"
-  private[index] val DISC_NUMBER = "discNumber"
-  private[index] val DISC_COUNT = "discCount"
+  private[library] val PATH = "path"
+  private[library] val PATH_TREE = "tree"
+  private[library] val PATH_TREE_REVERSED = "treeReversed"
+  private[library] val HASH = "hash"
+  private[library] val LAST_MODIFIED = "lastModified"
+  private[library] val LAST_INDEXED = "lastIndexed"
 
-  private[index] val RAW = "raw"
+  private[library] val TAG = "tag"
+  private[library] val TITLE = "title"
+  private[library] val ALBUM = "album"
+  private[library] val ARTIST = "artist"
+  private[library] val YEAR = "year"
+  private[library] val TRACK_NUMBER = "trackNumber"
+  private[library] val TRACK_COUNT = "trackCount"
+  private[library] val DISC_NUMBER = "discNumber"
+  private[library] val DISC_COUNT = "discCount"
 
-  private[index] val logger: Logger = LoggerFactory.getLogger(IndexService.getClass)
+  private[library] val RAW = "raw"
 
-  def createIndex(device: Device): Unit =
+  private val logger: Logger = LoggerFactory.getLogger(IndexService.getClass)
+
+  def createIndex(indexName: IndexName): Unit =
     withClient { client =>
       val pathAnalyzer = CustomAnalyzer(CUSTOM_PATH_TREE, tokenizer = CUSTOM_HIERARCHY)
       val pathAnalyzerReversed: CustomAnalyzer =
@@ -62,11 +65,17 @@ object IndexService {
         PathHierarchyTokenizer(CUSTOM_HIERARCHY, delimiter = AndroidPath.pathSeparator)
       val customHierarchyTokenizerReversed: PathHierarchyTokenizer =
         PathHierarchyTokenizer(CUSTOM_HIERARCHY_REVERSED, delimiter = AndroidPath.pathSeparator, reverse = true)
-      val pathAnalysis: Analysis =
-        Analysis(analyzers = List(pathAnalyzer, pathAnalyzerReversed),
-                 tokenizers = List(customHierarchyTokenizer, customHierarchyTokenizerReversed))
 
-      val rawField: List[ElasticField] = List(KeywordField(RAW))
+      val keywordSanitizer = CustomNormalizer.apply(SANITIZER, Nil, List("lowercase", "asciifolding"))
+
+      val analysis: Analysis =
+        Analysis(
+          analyzers = List(pathAnalyzer, pathAnalyzerReversed),
+          tokenizers = List(customHierarchyTokenizer, customHierarchyTokenizerReversed),
+          normalizers = List(keywordSanitizer)
+        )
+
+      val rawField: List[ElasticField] = List(TextField(RAW))
 
       val pathFields: List[ElasticField] = rawField ++ List(TextField(PATH_TREE, analyzer = Some(CUSTOM_PATH_TREE)),
                                                             TextField(PATH_TREE_REVERSED,
@@ -74,9 +83,10 @@ object IndexService {
       val pathField = TextField(PATH, fields = pathFields)
       val hashField = KeywordField(name = HASH)
       val lastModifiedField = DateField(LAST_MODIFIED)
-      val titleField = TextField(TITLE, fields = rawField)
-      val albumField = TextField(ALBUM, fields = rawField)
-      val artistField = TextField(ARTIST, fields = rawField)
+      val lastIndexedField = DateField(LAST_INDEXED)
+      val titleField = KeywordField(TITLE, fields = rawField, normalizer = Some(SANITIZER))
+      val albumField = KeywordField(ALBUM, fields = rawField, normalizer = Some(SANITIZER))
+      val artistField = KeywordField(ARTIST, fields = rawField, normalizer = Some(SANITIZER))
       val yearField = IntegerField(YEAR)
       val trackNumberField = IntegerField(TRACK_NUMBER)
       val trackCountField = IntegerField(TRACK_COUNT)
@@ -95,19 +105,23 @@ object IndexService {
                          discNumberField,
                          discCountField)
       )
-      val mapping: MappingDefinition = Elastic.properties(hashField, pathField, lastModifiedField, tagField)
-      val indexName: String = device.serial
-      client.execute {
-        Elastic.createIndex(indexName).analysis(pathAnalysis).mapping(mapping)
-      }.await
+      val mapping: MappingDefinition =
+        Elastic.properties(hashField, pathField, lastModifiedField, lastIndexedField, tagField)
+
+      val response: Response[CreateIndexResponse] =
+        client.execute {
+          Elastic.createIndex(indexName.value).analysis(analysis).mapping(mapping)
+        }.await
+
+      assertSuccess(response, s"create index $indexName")
 
       client.close()
     }
 
-  def put(device: Device, record: TrackRecord, forceOverwrite: Boolean = false): Option[TrackRecord] =
-    putAll(device: Device, Seq(record), forceOverwrite).headOption
+  def put(indexName: IndexName, record: TrackRecord, forceOverwrite: Boolean = false): Option[TrackRecord] =
+    putAll(indexName, Seq(record), forceOverwrite).headOption
 
-  def putAll(device: Device, records: Seq[TrackRecord], forceOverwrite: Boolean = false): Seq[TrackRecord] =
+  def putAll(indexName: IndexName, records: Seq[TrackRecord], forceOverwrite: Boolean = false): Seq[TrackRecord] =
     withClient { client =>
       val recordByPath: Map[VirtualPath, Seq[TrackRecord]] = records.groupBy(_.path)
 
@@ -123,7 +137,7 @@ object IndexService {
           val recordsFromPathQuery: AnyOf = AnyOf(records.map(record => PathQuery(record.path)))
           logger.trace(s"Sending query to find existing records for paths: $recordsFromPathQuery")
           IndexService
-            .query(device, recordsFromPathQuery, 10000)
+            .query(indexName, recordsFromPathQuery, 10000)
             .map(_._2)
             .groupBy(_.path)
             .transform((_, rs) => rs.head)
@@ -153,57 +167,62 @@ object IndexService {
             }
         })
 
+      logger.info(s"Writing ${recordsToWrite.size} records to ${indexName.value}")
+
       recordsToWrite.foreach { record =>
-        logger.debug(s"Indexing record for device $device: $record")
-        client.execute {
-          indexInto(device.serial)
-            .fields(
-              HASH -> record.hash,
-              PATH -> record.path.raw,
-              LAST_MODIFIED -> record.lastModified,
-              TAG -> Map(
-                TITLE -> record.tag.title,
-                ALBUM -> record.tag.album,
-                ARTIST -> record.tag.artist,
-                YEAR -> record.tag.year,
-                TRACK_NUMBER -> record.tag.trackNumber,
-                TRACK_COUNT -> record.tag.trackCount,
-                DISC_NUMBER -> record.tag.discNumber,
-                DISC_COUNT -> record.tag.discCount
+        logger.debug(s"Indexing record for device ${indexName.value}: $record")
+        val indexResponse: Response[IndexResponse] =
+          client.execute {
+            indexInto(indexName.value)
+              .fields(
+                HASH -> record.hash,
+                PATH -> record.path.raw,
+                LAST_MODIFIED -> record.lastModified,
+                TAG -> Map(
+                  TITLE -> record.tag.title,
+                  ALBUM -> record.tag.album,
+                  ARTIST -> record.tag.artist,
+                  YEAR -> record.tag.year,
+                  TRACK_NUMBER -> record.tag.trackNumber,
+                  TRACK_COUNT -> record.tag.trackCount,
+                  DISC_NUMBER -> record.tag.discNumber,
+                  DISC_COUNT -> record.tag.discCount
+                )
               )
-            )
-            .id(record.path.raw)
-            .refresh(RefreshPolicy.Immediate)
-        }.await
+              .id(record.path.raw)
+              .refresh(RefreshPolicy.Immediate)
+          }.await
+
+        assertSuccess(indexResponse, s"indexing record $record")
       }
 
       recordsToWrite
     }
 
-  def remove(device: Device, path: VirtualPath): Unit =
-    remove(device, Seq(path))
+  def remove(indexName: IndexName, path: VirtualPath): Unit =
+    remove(indexName, Seq(path))
 
-  def remove(device: Device, paths: Seq[VirtualPath]): Unit =
+  def remove(indexName: IndexName, paths: Seq[VirtualPath]): Unit =
     withClient { client =>
       paths.foreach(path => {
-        logger.info(s"Deleting $path from index.")
-        client.execute(deleteById(device.serial, path.raw)).await
+        logger.info(s"Deleting $path from index ${indexName.value}.")
+        client.execute(deleteById(indexName.value, path.raw)).await
       })
     }
 
-  def dropIndex(device: Device): Unit =
+  def dropIndex(indexName: IndexName): Unit =
     withClient { client =>
-      logger.info(s"Dropping index for device ${device.serial}.")
-      client.execute(deleteIndex(device.serial)).await
+      logger.info(s"Dropping index for ${indexName.value}.")
+      client.execute(deleteIndex(indexName.value)).await
     }
 
-  def query(device: Device, query: RecordQuery, size: Int): Seq[(Id, TrackRecord)] =
+  def query(indexName: IndexName, query: DeviceIndexQuery, size: Int): Seq[(Id, TrackRecord)] =
     withClient { client =>
       import com.sksamuel.elastic4s.requests.searches._
       val response: Response[SearchResponse] =
         client.execute {
           val request: SearchRequest =
-            Elastic.search(device.serial).query(QueryBuilder.toElasticsearch(query)).size(size)
+            Elastic.search(indexName.value).query(QueryBuilder.toElasticsearch(query)).size(size)
 
           logger.debug(s"Sending query: ${request.show}")
           request
@@ -212,12 +231,12 @@ object IndexService {
       parseResults(response)
     }
 
-  def queryAll(device: Device): Seq[(Id, TrackRecord)] =
+  def queryAll(indexName: IndexName): Seq[(Id, TrackRecord)] =
     withClient { client =>
-      logger.debug(s"Querying all records for device: $device")
+      logger.debug(s"Querying all records for device: ${indexName.value}")
       val response: Response[SearchResponse] =
         client.execute {
-          Elastic.search(device.serial).query(MatchAllQuery()).size(10000)
+          Elastic.search(indexName.value).query(MatchAllQuery()).size(10000)
         }.await
 
       parseResults(response)
@@ -260,6 +279,7 @@ object IndexService {
     val hash: String = sourceMap(HASH).toString
     val path = AndroidPath(sourceMap(PATH).toString)
     val lastModified = ZonedDateTime.parse(sourceMap(LAST_MODIFIED).toString).toInstant
+    val lastIndexed = ZonedDateTime.parse(sourceMap(LAST_INDEXED).toString).toInstant
 
     val tagMap: Map[String, String] = sourceMap(TAG).asInstanceOf[Map[String, String]]
     val title: String = tagMap(TITLE)
@@ -274,8 +294,16 @@ object IndexService {
     TrackRecord(hash,
                 path,
                 lastModified,
+                lastIndexed,
                 Tag(title, album, artist, year, trackNumber, trackCount, discNumber, discCount))
   }
+
+  private def assertSuccess(response: Response[_], callName: String): Unit =
+    response match {
+      case RequestFailure(_, _, _, error) =>
+        throw new RuntimeException(s"Exception running $callName: $error", error.asException)
+      case _ =>
+    }
 }
 
 object QueryBuilder {
@@ -283,14 +311,14 @@ object QueryBuilder {
   import com.sksamuel.elastic4s.ElasticDsl._
 
   @tailrec
-  def toElasticsearch(recordQuery: RecordQuery): Query =
+  def toElasticsearch(recordQuery: DeviceIndexQuery): Query =
     recordQuery match {
-      case AllOf(elements)        => bool(mustQueries = elements.map(toElasticsearchHelper), Nil, Nil)
-      case AnyOf(elements)        => bool(Nil, shouldQueries = elements.map(toElasticsearchHelper), Nil)
-      case op: RecordQueryOperand => toElasticsearch(AnyOf(Seq(op)))
+      case AllOf(elements)             => bool(mustQueries = elements.map(toElasticsearchHelper), Nil, Nil)
+      case AnyOf(elements)             => bool(Nil, shouldQueries = elements.map(toElasticsearchHelper), Nil)
+      case op: DeviceIndexQueryOperand => toElasticsearch(AnyOf(Seq(op)))
     }
 
-  private def toElasticsearchHelper(recordQuery: RecordQuery): Query =
+  private def toElasticsearchHelper(recordQuery: DeviceIndexQuery): Query =
     recordQuery match {
       case all: AllOf => toElasticsearch(all)
       case any: AnyOf => toElasticsearch(any)
@@ -315,3 +343,5 @@ object QueryBuilder {
         matchQuery(field, year).operator("AND")
     }
 }
+
+case class IndexName(value: String)

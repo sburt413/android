@@ -38,7 +38,10 @@ object VirtualFile extends VirtualFileCodecs {
   val mp3Filter: VirtualFile => Boolean = extensionFilter(".mp3")
 }
 
-// Remote as in 'on the android device'
+sealed trait VirtualDirectory extends VirtualFile
+
+sealed trait VirtualRegularFile extends VirtualFile
+
 sealed trait AndroidFile extends VirtualFile with AndroidFileCodecs {
   def path: AndroidPath
 }
@@ -53,11 +56,11 @@ object AndroidFile {
   }
 }
 
-case class AndroidDirectory(path: AndroidPath, modifyTime: Instant) extends AndroidFile
+case class AndroidDirectory(path: AndroidPath, modifyTime: Instant) extends AndroidFile with VirtualDirectory
 
 object AndroidDirectory extends AndroidDirectoryCodecs
 
-case class AndroidRegularFile(path: AndroidPath, modifyTime: Instant) extends AndroidFile
+case class AndroidRegularFile(path: AndroidPath, modifyTime: Instant) extends AndroidFile with VirtualRegularFile
 
 object AndroidRegularFile extends AndroidRegularFileCodecs
 
@@ -112,10 +115,10 @@ object WindowsFile extends WindowsFileCodecs {
   implicit def wrapFile(path: Path): VirtualFile = WindowsFile.of(path)
 }
 
-case class WindowsDirectory(javaPath: Path) extends WindowsFile(javaPath)
+case class WindowsDirectory(javaPath: Path) extends WindowsFile(javaPath) with VirtualDirectory
 
 object WindowsDirectory extends WindowsDirectoryCodecs
 
-case class WindowsRegularFile(javaPath: Path) extends WindowsFile(javaPath)
+case class WindowsRegularFile(javaPath: Path) extends WindowsFile(javaPath) with VirtualRegularFile
 
 object WindowsRegularFile extends WindowsRegularFileCodecs

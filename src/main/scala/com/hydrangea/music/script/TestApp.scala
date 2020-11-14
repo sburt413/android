@@ -1,15 +1,13 @@
 package com.hydrangea.music.script
 
-import java.nio.file.{Files, Path, Paths}
-import java.time.Instant
+import java.nio.file._
+import java.nio.file.attribute.BasicFileAttributes
 
 import com.hydrangea.android.adb.{ADB, Device}
 import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
 import com.hydrangea.music.library.TrackRecord
-import com.hydrangea.music.library.index.{DeviceIndexRecord, DeviceIndexRecordService, RecordCandidate}
-import com.hydrangea.music.library.repository.RepositoryService
-import com.hydrangea.music.tagger.TikaAndroidTagger
+import com.hydrangea.music.tagger.TikaTagger
 
 object TestApp {
   val adbDirectory: WindowsDirectory = {
@@ -33,11 +31,27 @@ object TestApp {
     "/storage/0123-4567/Music/Generation Axe/The Guitars That Destroyed The World_ Li/06 Whipping Post [Live].mp3".toAndroidPath
 
   def main(args: Array[String]): Unit = {
-//    device.withCommandLine() { commandLine =>
-//      commandLine.sha1sum("/storage/0123-4567/Music/Aerosmith/Get Your Wings/06 Train Kept A Rollin'.mp3".toAndroidPath)
-//    }
+//    val repositoryDirectory: WindowsDirectory =
+//      Configuration.repositoryDirectory.toLocalDirectory
+//        .getOrElse(throw new IllegalStateException("Repository directory does not exist."))
+//
+//    RepositoryLibraryService.createRepositoryIndex(Repository(repositoryDirectory))
+    val apcPath: Path = Paths.get("Z:\\A Perfect Circle\\Mer de Noms")
+    Files.walkFileTree(
+      apcPath,
+      new SimpleFileVisitor[Path] {
+        override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
+          println(s"Visiting: $file")
+          if (file.getFileName.toString.endsWith(".mp3")) {
+            val record: TrackRecord = TikaTagger.tag(file)
+            println(s"Record for path ($file): $record")
+          }
 
-    RepositoryService.readRepository("\\\\BLUEJAY\\Music\\".toWindowsPath)
+          FileVisitResult.CONTINUE
+        }
+      }
+    )
+
   }
 
   def tag() = {
@@ -58,7 +72,7 @@ object TestApp {
           })
           .filter(VirtualFile.mp3Filter)
 
-      val records: Seq[TrackRecord] = mp3Files.map(TikaAndroidTagger.tag(commandLine, _))
+      val records: Seq[TrackRecord] = mp3Files.map(TikaTagger.tag(commandLine, _))
       println(s"Extracted Records:\n${records.mkString("\n")}")
 
       //      val depthCharge: AndroidRegularFile =

@@ -14,8 +14,8 @@ import org.apache.tika.parser.mp3.Mp3Parser
 import org.slf4j.Logger
 import org.xml.sax.helpers.DefaultHandler
 
-object TikaAndroidTagger {
-  private val logger: Logger = org.slf4j.LoggerFactory.getLogger(TikaAndroidTagger.getClass)
+object TikaTagger {
+  private val logger: Logger = org.slf4j.LoggerFactory.getLogger(TikaTagger.getClass)
 
   private class ParserThread(inputStream: InputStream, metadata: Metadata) extends Thread {
     val handler = new DefaultHandler
@@ -71,7 +71,7 @@ object TikaAndroidTagger {
   }
 
   def tag(path: WindowsPath): TrackRecord = {
-    System.out.println(s"Parsing: ${path.raw}")
+    logger.info(s"Parsing: ${path.raw}")
 
     val handler = new DefaultHandler
     val context = new ParseContext
@@ -83,7 +83,7 @@ object TikaAndroidTagger {
     parser.parse(Files.newInputStream(path.toJavaPath), handler, metadata, context)
 
     val record: TrackRecord = fromMetadata(hash, WindowsFile.of(path.toJavaPath), metadata)
-    System.out.println(s"Record is: ${record}")
+    logger.info(s"Record is: ${record}")
     record
   }
 

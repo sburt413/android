@@ -384,5 +384,5 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
 object ADBCommandLine {
   private[adb] val logger: Logger = LoggerFactory.getLogger(classOf[ADBCommandLine])
 
-  val UTF_8: java.nio.charset.Charset = Charset.forName("UTF-8")
+  val UTF_16: java.nio.charset.Charset = Charset.forName("UTF-16")
 }

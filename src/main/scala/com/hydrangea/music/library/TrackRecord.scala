@@ -6,6 +6,16 @@ import com.hydrangea.android.file.{VirtualFile, VirtualPath}
 import com.mpatric.mp3agic.ID3v2
 
 /**
+ * A record of an mp3 track.
+ *
+ * @param hash         the sha1 hash of the file
+ * @param path         the path to the file on the device
+ * @param lastModified the last modified time of the file according to the filesystem
+ * @param tag          the tag information for the file
+ */
+case class TrackRecord(hash: String, path: VirtualPath, lastModified: Instant, lastIndexed: Instant, tag: Tag)
+
+/**
   * Tag information for an mp3 track.
   *
   * @param title       the title of the track
@@ -26,19 +36,9 @@ case class Tag(title: String,
                discNumber: Option[Int],
                discCount: Option[Int])
 
-/**
-  * A record of an mp3 track.
-  *
-  * @param hash         the sha1 hash of the file
-  * @param path         the path to the file on the device
-  * @param lastModified the last modified time of the file according to the filesystem
-  * @param tag          the tag information for the file
-  */
-case class TrackRecord(hash: String, path: VirtualPath, lastModified: Instant, tag: Tag)
-
 object TrackRecord {
   def apply(hash: String, file: VirtualFile, tag: Tag): TrackRecord =
-    TrackRecord(hash, file.path, file.modifyTime, tag)
+    TrackRecord(hash, file.path, file.modifyTime, Instant.now(), tag)
 
   def apply(hash: String, file: VirtualFile, tag: ID3v2): TrackRecord = {
     val year: Option[Int] = Option(tag.getYear).map(_.toInt)
@@ -48,6 +48,7 @@ object TrackRecord {
     TrackRecord(hash,
                 file.path,
                 file.modifyTime,
+                Instant.now(),
                 Tag(tag.getTitle, tag.getAlbum, tag.getArtist, year, trackNumber, trackCount, discNumber, discCount))
   }
 

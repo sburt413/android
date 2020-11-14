@@ -1,24 +1,15 @@
 package com.hydrangea.android.adb
 
-import java.io.{
-  BufferedInputStream,
-  BufferedOutputStream,
-  FileOutputStream,
-  InputStream,
-  OutputStream,
-  PipedInputStream,
-  PipedOutputStream,
-  PrintStream
-}
-import java.nio.file.Path
+import java.io._
 
-import com.hydrangea.android.adb.ADBCommandLine.UTF_8
+import com.hydrangea.android.adb.ADBCommandLine.UTF_16
 import org.apache.commons.exec.{CommandLine, DefaultExecutor, ExecuteWatchdog, PumpStreamHandler}
 import org.apache.commons.io.output.ByteArrayOutputStream
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.TimeUnit
+import scala.util.control.NonFatal
 
 case class Timeout(count: Long, units: TimeUnit) {
   def inMills: Long = units.toMillis(count)
@@ -58,19 +49,25 @@ class ADBProcess(args: Seq[String],
     executor.getStreamHandler.start()
 
     val waitFor: WaitFor = () => {
-      val exitValue: Int = executor.execute(commandLine)
-      if (exitValue != 0) {
-        logger.warn(s"NON ZERO EXIT VALUE ($exitValue) for $args")
-      } else {
-        logger.trace("NORMAL PROCESS TERMINATION")
+      try {
+        val exitValue: Int = executor.execute(commandLine)
+        if (exitValue != 0) {
+          logger.warn(s"NON ZERO EXIT VALUE ($exitValue) for $args")
+        } else {
+          logger.trace("NORMAL PROCESS TERMINATION")
+        }
+
+        executor.getStreamHandler.stop()
+
+        stdoutListener.join()
+        stderrListener.join()
+
+        exitValue
+      } catch {
+        case NonFatal(e) =>
+          logger.warn(s"Exception running process (${args.mkString(" ")}).", e)
+          -999
       }
-
-      executor.getStreamHandler.stop()
-
-      stdoutListener.join()
-      stderrListener.join()
-
-      exitValue
     }
 
     waitFor
@@ -108,17 +105,17 @@ object ADBProcess {
   private def runAndParse(timeout: Option[Timeout], args: String*): (Int, Seq[String], Seq[String]) = {
     val stdoutBytes = new ByteArrayOutputStream()
     val stdoutBuilder: ADBProcessListenerBuilder =
-      ADBProcessListener.pipedBuilder(new PrintStream(stdoutBytes, true, UTF_8))
+      ADBProcessListener.pipedBuilder(new PrintStream(stdoutBytes, true, UTF_16))
 
     val stderrBytes = new ByteArrayOutputStream()
     val stderrBuilder: ADBProcessListenerBuilder =
-      ADBProcessListener.pipedBuilder(new PrintStream(stderrBytes, true, UTF_8))
+      ADBProcessListener.pipedBuilder(new PrintStream(stderrBytes, true, UTF_16))
 
     val exitCode: Int = new ADBProcess(args, stdoutBuilder, stderrBuilder, timeout).run()
-    val stdoutLines: Seq[String] = stdoutBytes.toString(UTF_8).split("\r?\n")
+    val stdoutLines: Seq[String] = stdoutBytes.toString(UTF_16).split("\r?\n")
     // Require at least one non-empty line for stderr to be considered nonempty
     val stderrLines: Seq[String] =
-      Option(stderrBytes.toString(UTF_8).split("\r?\n").toSeq).filter(_.exists(_.nonEmpty)).getOrElse(Nil)
+      Option(stderrBytes.toString(UTF_16).split("\r?\n").toSeq).filter(_.exists(_.nonEmpty)).getOrElse(Nil)
     (exitCode, stdoutLines, stderrLines)
   }
 
@@ -187,7 +184,7 @@ object ADBProcessListener {
 
     def onRead(buffer: Array[Byte], readLength: Int): Unit = {
       if (readLength > 0) {
-        logger.debug(s"$label: " + new String(buffer, 0, readLength, UTF_8))
+        logger.debug(s"$label: " + new String(buffer, 0, readLength, UTF_16))
       }
 
       outputStream.write(buffer, 0, readLength)

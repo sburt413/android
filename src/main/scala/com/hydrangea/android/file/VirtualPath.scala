@@ -4,7 +4,6 @@ import java.io.File
 import java.nio.file.{Path, Paths}
 
 import argonaut.Argonaut._
-import argonaut._
 import org.apache.commons.exec.util.StringUtils
 
 import scala.language.implicitConversions
@@ -125,6 +124,8 @@ case class WindowsPath(raw: String) extends VirtualPath {
 }
 
 object WindowsPath {
+  def apply(javaPath: Path): WindowsPath = WindowsPath(javaPath.toAbsolutePath.toString)
+
   val pathSeparator: Char = '\\'
 }
 
@@ -140,7 +141,8 @@ object VirtualPath extends VirtualPathCodecs {
   def extensionFilter(extension: String): VirtualPath => Boolean =
     path => path.raw.endsWith(extension)
 
-  val mp3Filter = extensionFilter(".mp3")
+  val mp3Extension = ".mp3"
+  val mp3Filter = extensionFilter(mp3Extension)
 
   def isCurrentDirectory(path: VirtualPath): Boolean =
     path match {
