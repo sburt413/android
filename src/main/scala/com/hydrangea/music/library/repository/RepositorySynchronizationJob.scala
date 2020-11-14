@@ -1,8 +1,9 @@
 package com.hydrangea.music.library.repository
 
 import com.hydrangea.android.file.{WindowsPath, WindowsRegularFile}
+import com.hydrangea.music.TrackRecord
 import com.hydrangea.music.library.record.{IndexRecord, LastIndexedRecord, Schedule, SynchronizationJob}
-import com.hydrangea.music.library.{IndexName, TrackRecord}
+import com.hydrangea.music.library.IndexName
 import com.hydrangea.music.tagger.TikaTagger
 
 class RepositorySynchronizationJob(indexName: IndexName) extends SynchronizationJob[WindowsPath, WindowsRegularFile] {

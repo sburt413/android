@@ -2,8 +2,9 @@ package com.hydrangea.music.library.device
 
 import com.hydrangea.android.adb.Device
 import com.hydrangea.android.file.{AndroidPath, AndroidRegularFile}
+import com.hydrangea.music.TrackRecord
 import com.hydrangea.music.library.record.{IndexRecord, LastIndexedRecord, Schedule, SynchronizationJob}
-import com.hydrangea.music.library.{IndexName, TrackRecord}
+import com.hydrangea.music.library.IndexName
 import com.hydrangea.music.tagger.TikaTagger
 
 class DeviceSynchronizationJob(device: Device, indexName: IndexName)

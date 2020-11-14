@@ -1,4 +1,4 @@
-package com.hydrangea.music.library
+package com.hydrangea.music
 
 import java.time.Instant
 

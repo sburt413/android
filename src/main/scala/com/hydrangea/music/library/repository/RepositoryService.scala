@@ -3,7 +3,7 @@ package com.hydrangea.music.library.repository
 import java.nio.file.Files
 
 import com.hydrangea.android.file.{VirtualPath, WindowsPath}
-import com.hydrangea.music.library.TrackRecord
+import com.hydrangea.music.TrackRecord
 import com.hydrangea.music.tagger.TikaTagger
 
 import scala.jdk.StreamConverters._

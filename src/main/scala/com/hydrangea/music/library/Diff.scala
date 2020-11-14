@@ -2,6 +2,8 @@ package com.hydrangea.music.library
 
 import java.time.Instant
 
+import com.hydrangea.music.{Tag, TrackRecord}
+
 object Diff {
   def mostRecent(tracks: TrackRecord*): DiffResult = {
     val latestUpdate: Instant = tracks.map(_.lastModified).max

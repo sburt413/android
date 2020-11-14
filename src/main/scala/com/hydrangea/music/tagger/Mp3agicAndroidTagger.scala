@@ -5,7 +5,7 @@ import java.nio.file.{FileVisitor, Files, Path}
 import com.hydrangea.android.adb.ADBCommandLine
 import com.hydrangea.android.file.WindowsFile._
 import com.hydrangea.android.file._
-import com.hydrangea.music.library.TrackRecord
+import com.hydrangea.music.TrackRecord
 import com.mpatric.mp3agic.{ID3v2, Mp3File}
 import org.apache.commons.io.FileUtils
 import org.slf4j.Logger
