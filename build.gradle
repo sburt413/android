@@ -3,7 +3,7 @@ plugins {
     id 'scala'
 }
 
-group 'org.example'
+group 'com.hydrangea'
 version '1.0-SNAPSHOT'
 
 repositories {
@@ -33,9 +33,19 @@ dependencies {
     compile group: 'com.beachape', name: 'enumeratum-argonaut_2.13', version: '1.6.0'
     compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.2'
 
+
     implementation 'org.scala-lang.modules:scala-java8-compat_2.11:0.8.0-RC3'
     implementation 'org.scala-lang:scala-library:2.13.2'
-
-    testCompile group: 'junit', name: 'junit', version: '4.12'
     testImplementation 'org.scalatest:scalatest_2.13:3.1.1'
+    testCompile group: 'org.scalatest', name: 'scalatest-freespec_sjs1_2.13', version: '3.2.3'
+
+    testRuntime "org.junit.platform:junit-platform-engine:1.7.0"
+    testRuntime "org.junit.platform:junit-platform-launcher:1.7.0"
+    testRuntime "co.helmethair:scalatest-junit-runner:0.1.2"
+}
+
+test {
+    useJUnitPlatform {
+        includeEngines 'scalatest'
+    }
 }

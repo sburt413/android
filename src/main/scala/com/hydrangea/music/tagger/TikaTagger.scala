@@ -5,8 +5,8 @@ import java.nio.file.Files
 
 import com.hydrangea.android.adb.{ADBCommandLine, ADBProcessListener, ADBProcessListenerBuilder}
 import com.hydrangea.android.file.{AndroidRegularFile, VirtualFile, WindowsFile, WindowsPath}
-import com.hydrangea.music.{Tag, TrackRecord}
-import com.hydrangea.music.library.Tag
+import com.hydrangea.music.library.TrackRecord
+import com.hydrangea.music.track.Tag
 import org.apache.commons.codec.digest.DigestUtils
 import org.apache.commons.codec.digest.MessageDigestAlgorithms.SHA_1
 import org.apache.tika.metadata.Metadata

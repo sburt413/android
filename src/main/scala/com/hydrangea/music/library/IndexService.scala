@@ -3,8 +3,8 @@ package com.hydrangea.music.library
 import java.time.{Instant, ZonedDateTime}
 
 import com.hydrangea.android.file.{AndroidPath, VirtualPath}
-import com.hydrangea.music.{Tag, TrackRecord}
 import com.hydrangea.music.library.device._
+import com.hydrangea.music.track.Tag
 import com.sksamuel.elastic4s.analysis.{Analysis, _}
 import com.sksamuel.elastic4s.fields._
 import com.sksamuel.elastic4s.http.JavaClient

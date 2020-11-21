@@ -2,7 +2,7 @@ package com.hydrangea.music.library
 
 import java.time.Instant
 
-import com.hydrangea.music.{Tag, TrackRecord}
+import com.hydrangea.music.track.Tag
 
 object Diff {
   def mostRecent(tracks: TrackRecord*): DiffResult = {

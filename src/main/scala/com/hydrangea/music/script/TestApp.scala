@@ -6,7 +6,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import com.hydrangea.android.adb.{ADB, Device}
 import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
-import com.hydrangea.music.TrackRecord
+import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.tagger.TikaTagger
 
 object TestApp {
