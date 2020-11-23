@@ -1,6 +1,7 @@
 package com.hydrangea.android.adb
 
 import java.io._
+import java.nio.charset.Charset
 
 import com.hydrangea.android.adb.ADBCommandLine.UTF_16
 import org.apache.commons.exec.{CommandLine, DefaultExecutor, ExecuteWatchdog, PumpStreamHandler}
@@ -103,19 +104,21 @@ object ADBProcess {
     new ADBProcess(args, stdoutBuilder, stderrBuilder, timeout)
 
   private def runAndParse(timeout: Option[Timeout], args: String*): (Int, Seq[String], Seq[String]) = {
+    //val charset: Charset = UTF_16
+    val charset: Charset = Charset.defaultCharset()
     val stdoutBytes = new ByteArrayOutputStream()
     val stdoutBuilder: ADBProcessListenerBuilder =
-      ADBProcessListener.pipedBuilder(new PrintStream(stdoutBytes, true, UTF_16))
+      ADBProcessListener.pipedBuilder(new PrintStream(stdoutBytes, true, charset))
 
     val stderrBytes = new ByteArrayOutputStream()
     val stderrBuilder: ADBProcessListenerBuilder =
-      ADBProcessListener.pipedBuilder(new PrintStream(stderrBytes, true, UTF_16))
+      ADBProcessListener.pipedBuilder(new PrintStream(stderrBytes, true, charset))
 
     val exitCode: Int = new ADBProcess(args, stdoutBuilder, stderrBuilder, timeout).run()
-    val stdoutLines: Seq[String] = stdoutBytes.toString(UTF_16).split("\r?\n")
+    val stdoutLines: Seq[String] = stdoutBytes.toString(charset).split("\r?\n")
     // Require at least one non-empty line for stderr to be considered nonempty
     val stderrLines: Seq[String] =
-      Option(stderrBytes.toString(UTF_16).split("\r?\n").toSeq).filter(_.exists(_.nonEmpty)).getOrElse(Nil)
+      Option(stderrBytes.toString(charset).split("\r?\n").toSeq).filter(_.exists(_.nonEmpty)).getOrElse(Nil)
     (exitCode, stdoutLines, stderrLines)
   }
 

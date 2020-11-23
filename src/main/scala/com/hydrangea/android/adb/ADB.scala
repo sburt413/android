@@ -9,6 +9,8 @@ import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForDirectories, Fo
 import com.hydrangea.android.adb.ls.LsParser
 import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
+import com.hydrangea.file.UnixPath
+import com.hydrangea.process.CLIProcess
 import org.slf4j.{Logger, LoggerFactory}
 
 /**
@@ -76,7 +78,7 @@ object ADB {
   * @param device  the device to run the commands on
   * @param timeout the maximum runtime for a single underlying command
   */
-class ADBCommandLine(device: Device, timeout: Timeout) {
+class ADBCommandLine(val device: Device, timeout: Timeout) {
   import ADBCommandLine.logger
 
   /**
@@ -379,6 +381,15 @@ class ADBCommandLine(device: Device, timeout: Timeout) {
                      stderrListener: ADBProcessListenerBuilder = ADBProcessListener.pipedBuilder(System.err)): Int =
     run(execOutCmd("cat", path.quoted), stdoutListener, stderrListener)
 
+  /**
+    * Creates a [[Process]] to transfer the raw data from the given path.  The caller will then attach to the
+    * [[Process]]'s stdout to receive the data.
+    *
+    * @param path the path of the file to transfer
+    * @return the [[Process]] to transfer the data
+    */
+  def transferProcess(path: UnixPath): CLIProcess =
+    CLIProcess(adbCmd(execOutCmd("cat", path.quoted): _*))
 }
 
 object ADBCommandLine {

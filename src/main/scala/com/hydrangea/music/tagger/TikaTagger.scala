@@ -1,10 +1,11 @@
 package com.hydrangea.music.tagger
 
-import java.io.{InputStream, PipedInputStream, PipedOutputStream}
-import java.nio.file.Files
+import java.io.InputStream
+import java.nio.file.{Files, Path}
 
-import com.hydrangea.android.adb.{ADBCommandLine, ADBProcessListener, ADBProcessListenerBuilder}
-import com.hydrangea.android.file.{AndroidRegularFile, VirtualFile, WindowsFile, WindowsPath}
+import com.hydrangea.android.adb.ADBCommandLine
+import com.hydrangea.android.file.{AndroidFile, VirtualFile, WindowsFile, WindowsPath}
+import com.hydrangea.file.{AndroidLocation, FileLocation, FileSystemService, WindowsFileLocation}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.track.Tag
 import org.apache.commons.codec.digest.DigestUtils
@@ -16,6 +17,8 @@ import org.slf4j.Logger
 import org.xml.sax.helpers.DefaultHandler
 
 object TikaTagger {
+  import com.hydrangea.file.FilePath._
+
   private val logger: Logger = org.slf4j.LoggerFactory.getLogger(TikaTagger.getClass)
 
   private class ParserThread(inputStream: InputStream, metadata: Metadata) extends Thread {
@@ -28,76 +31,73 @@ object TikaTagger {
     }
   }
 
-  def tag(commandLine: ADBCommandLine, file: AndroidRegularFile): TrackRecord = {
-    logger.trace(s"Extracting record for file ($file).")
-    val hash: String = commandLine.sha1sum(file.path)
+  def tag(location: FileLocation[_]): Tag =
+    location match {
+      case windowsLocation: WindowsFileLocation[_] => tag(windowsLocation.javaPath)
+      case androidLocation: AndroidLocation        => tagAndroid(androidLocation)
+    }
 
+  private def tagAndroid(androidLocation: AndroidLocation): Tag = {
+    logger.trace(s"Extracting tag for location ($androidLocation).")
+    val handler = new DefaultHandler
+    val context = new ParseContext
+    val parser = new Mp3Parser
     val metadata = new Metadata
 
-    val outPipe = new PipedOutputStream()
-    val inputPipe = new PipedInputStream(outPipe)
-
-    val parserThread = new ParserThread(inputPipe, metadata)
-
-    val tagReaderBuilder: ADBProcessListenerBuilder =
-      inputStream => {
-        val startParser: () => Unit = () => parserThread.start()
-        val onRead: (Array[Byte], Int) => Unit =
-          (buffer, readLength) => {
-            outPipe.write(buffer, 0, readLength)
-          }
-        val onClose: () => Unit = () => {
-          outPipe.flush()
-          outPipe.close()
-
-          parserThread.join();
-          inputPipe.close()
-        }
-
-        ADBProcessListener(startParser, onRead, onClose)(inputStream)
-      }
-
     val start: Long = System.currentTimeMillis()
-
-    // commandLine | tagReader | tagParser
-    val transferExitCode: Int = commandLine.transferViaCat(file.path, tagReaderBuilder)
-    if (transferExitCode != 0) {
-      throw new RuntimeException(s"Transfer of file ($file) is unsuccessful: ${transferExitCode}")
+    FileSystemService.readFromDevice(androidLocation) { inputStream =>
+      parser.parse(inputStream, handler, metadata, context)
     }
 
     logger.debug(s"Read file in ${System.currentTimeMillis() - start}")
-    val record: TrackRecord = fromMetadata(hash, file, metadata)
-    logger.debug(s"Record for file ($file) is: $record")
-    record
+    val parsedTag: Tag = fromMetadata(metadata)
+    logger.debug(s"Tag for location ($parsedTag) is: $parsedTag")
+    parsedTag
+  }
+
+  // TODO
+  def tag(commandLine: ADBCommandLine, file: AndroidFile): TrackRecord = {
+    logger.trace(s"Extracting record for filepath ($file.path).")
+    val hash: String = commandLine.sha1sum(file.path)
+    val location: AndroidLocation = AndroidLocation(commandLine.device, file.path.raw.toUnixPath)
+    TrackRecord(hash, file, tag(location))
   }
 
   def tag(path: WindowsPath): TrackRecord = {
     logger.info(s"Parsing: ${path.raw}")
 
+    val sha1 = new DigestUtils(SHA_1)
+    val hash: String = sha1.digestAsHex(path.toJavaFile)
+    val parsedTag: Tag = tag(path.toJavaPath)
+    val record: TrackRecord = TrackRecord(hash, WindowsFile.of(path.toJavaPath), parsedTag)
+    logger.info(s"Record is: $record")
+    record
+  }
+
+  private def tag(javaPath: Path): Tag = {
     val handler = new DefaultHandler
     val context = new ParseContext
     val parser = new Mp3Parser
 
     val metadata = new Metadata
-    val sha1 = new DigestUtils(SHA_1)
-    val hash: String = sha1.digestAsHex(path.toJavaFile)
-    parser.parse(Files.newInputStream(path.toJavaPath), handler, metadata, context)
-
-    val record: TrackRecord = fromMetadata(hash, WindowsFile.of(path.toJavaPath), metadata)
-    logger.info(s"Record is: ${record}")
-    record
+    parser.parse(Files.newInputStream(javaPath), handler, metadata, context)
+    fromMetadata(metadata)
   }
 
-  private def fromMetadata(hash: String, file: VirtualFile, metadata: Metadata): TrackRecord = {
+  // TODO: Record can be composed at different level
+  private def fromMetadata(hash: String, file: VirtualFile, metadata: Metadata): TrackRecord =
+    TrackRecord(hash, file, fromMetadata(metadata))
+
+  private def fromMetadata(metadata: Metadata): Tag = {
     val title: String =
       Option(metadata.get("title"))
-        .getOrElse(throw new IllegalArgumentException(s"Cannot parse title from file ($file)"))
+        .getOrElse(throw new IllegalArgumentException(s"Cannot parse title from file"))
     val album: String =
       Option(metadata.get("xmpDM:album"))
-        .getOrElse(throw new IllegalArgumentException(s"Cannot parse album from file ($file)"))
+        .getOrElse(throw new IllegalArgumentException(s"Cannot parse album from file"))
     val artist: String =
       Option(metadata.get("xmpDM:artist"))
-        .getOrElse(throw new IllegalArgumentException(s"Cannot parse artist from file ($file)"))
+        .getOrElse(throw new IllegalArgumentException(s"Cannot parse artist from file"))
     val year: Option[Int] =
       Option(metadata.get("xmpDM:releaseDate"))
         .filter(_.nonEmpty)
@@ -108,6 +108,6 @@ object TikaTagger {
     val (discNumber, discCount) =
       Option(metadata.get("xmpDM:discNumber")).map(TrackRecord.slashSplit).getOrElse((None, None))
 
-    TrackRecord(hash, file, Tag(title, album, artist, year, trackNumber, trackCount, discNumber, discCount))
+    Tag(title, album, artist, year, trackNumber, trackCount, discNumber, discCount)
   }
 }
