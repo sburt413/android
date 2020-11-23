@@ -3,13 +3,17 @@ package com.hydrangea.process
 import java.io.{InputStream, PipedInputStream, PipedOutputStream, StringWriter}
 import java.nio.charset.Charset
 
-import com.hydrangea.android.adb.Timeout
 import org.apache.commons.exec.{CommandLine, DefaultExecutor, ExecuteWatchdog, PumpStreamHandler}
 import org.apache.commons.io.IOUtils
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.annotation.tailrec
+import scala.concurrent.duration.TimeUnit
 import scala.util.control.NonFatal
+
+case class Timeout(count: Long, units: TimeUnit) {
+  def inMills: Long = units.toMillis(count)
+}
 
 class CLIProcess(args: Seq[String],
                  timeout: Option[Timeout] = None,
@@ -33,7 +37,7 @@ class CLIProcess(args: Seq[String],
     * stream.  These should be created before the process is run.  Ideally, you may wish to read from these streams in
     * their own thread.
     *
-    * @return {{InputStream}}s for the stdout and stderr of the process
+    * @return [[InputStream]]s for the stdout and stderr of the process
     */
   def createStreamHandlers(): (InputStream, InputStream) = {
     val stdoutPipe = new PipedOutputStream()
@@ -41,6 +45,18 @@ class CLIProcess(args: Seq[String],
     executor.setStreamHandler(new PumpStreamHandler(stdoutPipe, stderrPipe))
 
     (new PipedInputStream(stdoutPipe), new PipedInputStream(stderrPipe))
+  }
+
+  /**
+    * Create a new pair of pipes for the process's stdout and stderr streams and creates [[ReaderThread]]s for both of
+    * them.  These should be created before the process is run.  The caller must manually start these threads.
+    *
+    * @param charset charset to encode the output as
+    * @return the [[ReaderThread]] for stdout and stderr (respectively)
+    */
+  def createReaderThreadHandlers(charset: Charset): (ReaderThread, ReaderThread) = {
+    val (stdout, stderr) = createStreamHandlers()
+    (CLIProcess.readerThread(stdout, charset), CLIProcess.readerThread(stderr, charset))
   }
 
   /**
@@ -81,8 +97,6 @@ class CLIProcess(args: Seq[String],
 }
 
 class ReaderThread(inputStream: InputStream, charset: Charset) extends Thread {
-  private val pipeSize = 200 * 1024
-
   private val output = new StringWriter()
 
   override def run(): Unit = {
@@ -94,12 +108,14 @@ class ReaderThread(inputStream: InputStream, charset: Charset) extends Thread {
 }
 
 object CLIProcess {
+  private[process] val logger: Logger = LoggerFactory.getLogger(CLIProcess.getClass)
+
   def apply(args: Seq[String],
             timeout: Option[Timeout] = None,
             expectedExitCodes: Option[Set[Int]] = Some(Set(0))): CLIProcess =
     new CLIProcess(args, timeout, expectedExitCodes)
 
-  private[process] val logger: Logger = LoggerFactory.getLogger(CLIProcess.getClass)
+  def readerThread(inputStream: InputStream, charset: Charset): ReaderThread = new ReaderThread(inputStream, charset)
 
   type WaitFor = () => Int
 
@@ -113,5 +129,38 @@ object CLIProcess {
       }
 
     build(new CommandLine(args.head), args.tail)
+  }
+
+  def runAndParse(command: Seq[String], timeout: Timeout, charset: Charset): (Int, Seq[String], Seq[String]) =
+    runAndParse(command, Some(timeout), charset)
+
+  def runAndParse(command: Seq[String],
+                  timeout: Option[Timeout] = None,
+                  charset: Charset): (Int, Seq[String], Seq[String]) = {
+    val process: CLIProcess = CLIProcess(command, timeout)
+
+    val (stdoutReader, stderrReader) = process.createReaderThreadHandlers(charset)
+
+    stdoutReader.start()
+    stderrReader.start()
+    val exitCode: Int = process.run()
+
+    stdoutReader.join()
+    stderrReader.join()
+
+    stdoutReader.getOutput.split(System.lineSeparator())
+
+    val stdout: Seq[String] = splitFilterLines(stdoutReader.getOutput)
+    val stderr: Seq[String] = splitFilterLines(stderrReader.getOutput)
+    (exitCode, stdout, stderr)
+  }
+
+  private def splitFilterLines(str: String): Seq[String] = {
+    val lines: Seq[String] = str.split(System.lineSeparator())
+    if (lines.forall(_.isBlank)) {
+      Nil
+    } else {
+      lines
+    }
   }
 }

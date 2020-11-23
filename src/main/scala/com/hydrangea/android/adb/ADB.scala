@@ -4,13 +4,12 @@ import java.nio.charset.Charset
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import com.hydrangea.android.adb.ADBProcess.WaitFor
 import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForDirectories, ForRegularFiles}
 import com.hydrangea.android.adb.ls.LsParser
 import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
 import com.hydrangea.file.UnixPath
-import com.hydrangea.process.CLIProcess
+import com.hydrangea.process.{CLIProcess, Timeout}
 import org.slf4j.{Logger, LoggerFactory}
 
 /**
@@ -26,7 +25,9 @@ case class Device(serial: String) {
     * @param timeout the timeout for any commands run on the commandline
     * @return an abstract [[ADBCommandLine]] for communicating with the device
     */
-  def commandline(timeout: Timeout = Device.defaultTimeout): ADBCommandLine = new ADBCommandLine(this, timeout)
+  def commandline(timeout: Timeout = Device.defaultTimeout,
+                  charset: Charset = Charset.defaultCharset()): ADBCommandLine =
+    new ADBCommandLine(this, timeout, charset)
 
   /**
     * Executes the given function, passing it a commandline.
@@ -36,8 +37,9 @@ case class Device(serial: String) {
     * @tparam A the type of output from the function
     * @return the result of running the function
     */
-  def withCommandLine[A](timeout: Timeout = Device.defaultTimeout)(fn: ADBCommandLine => A): A =
-    fn(new ADBCommandLine(this, timeout))
+  def withCommandLine[A](timeout: Timeout = Device.defaultTimeout, charset: Charset = ADBCommandLine.UTF_16)(
+      fn: ADBCommandLine => A): A =
+    fn(new ADBCommandLine(this, timeout, charset))
 }
 
 object Device {
@@ -50,11 +52,12 @@ object Device {
 object ADB {
   private[adb] val logger: Logger = LoggerFactory.getLogger(classOf[Device])
 
-  def commandLine(device: Device, timeout: Timeout): ADBCommandLine =
-    new ADBCommandLine(device, timeout)
+  def commandLine(device: Device, timeout: Timeout, charset: Charset): ADBCommandLine =
+    new ADBCommandLine(device, timeout, charset)
 
   def devices: Seq[Device] = {
-    val (_, stdout, _) = ADBProcess.runAndParse(Timeout(10, TimeUnit.SECONDS), "adb", "devices")
+    val (_, stdout, _) =
+      CLIProcess.runAndParse(Seq("adb", "devices"), Timeout(10, TimeUnit.SECONDS), Charset.defaultCharset())
 
     // Skip 'List of devices attached'
     stdout.tail.map(_.split("\\s+")(0)).map(serial => Device(serial))
@@ -78,8 +81,10 @@ object ADB {
   * @param device  the device to run the commands on
   * @param timeout the maximum runtime for a single underlying command
   */
-class ADBCommandLine(val device: Device, timeout: Timeout) {
+class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
   import ADBCommandLine.logger
+
+  private val adbExec: Seq[String] = Seq("adb", "-s", device.serial)
 
   /**
     * Wraps the given command in an `adb` command for this commandline's device.
@@ -87,7 +92,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout) {
     * @param command the command to run through adb
     * @return the wrapped command
     */
-  private def adbCmd(command: String*): Seq[String] = Seq("adb", "-s", device.serial) ++ command
+  private def adbCmd(command: String*): Seq[String] = adbExec ++ command
 
   /**
     * Wraps the given command in `adb shell` command for this commandline's device.
@@ -95,7 +100,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout) {
     * @param command the shell command to run through adb
     * @return the wrapped command
     */
-  private def shellCmd(command: String*): Seq[String] = Seq("shell") ++ command
+  private def adbShellCmd(command: String*): Seq[String] = adbExec ++ Seq("shell") ++ command
 
   /**
     * Wraps the given command in `adb exec-out` command for this commandline's device.  This is suitable for binary
@@ -104,50 +109,10 @@ class ADBCommandLine(val device: Device, timeout: Timeout) {
     * @param command the command to run through adb
     * @return the wrapped command
     */
-  private def execOutCmd(command: String*): Seq[String] = Seq("exec-out") ++ command
+  private def execOutCmd(command: String*): Seq[String] = adbExec ++ Seq("exec-out") ++ command
 
-  /**
-    * Executes the given command through `adb` and reads the stdout and stderr of the process into collections of
-    * lines.
-    *
-    * @param command the command to run
-    * @return in order: the exit code, parsed stdout and parsed stderr
-    */
-  private def runAndParse(command: Seq[String]): (Int, Seq[String], Seq[String]) = {
-    val args: Seq[String] = adbCmd(command: _*)
-    ADBProcess.runAndParse(timeout, args: _*)
-  }
-
-  /**
-    * Executes the given command through `adb` and pipes the output to the given readers.
-    *
-    * @param command      the command to run
-    * @param stdoutReader the builder to read stdout
-    * @param stderrReader the builder to read stderr
-    * @return the exit code for the process
-    */
-  private def run(command: Seq[String],
-                  stdoutReader: ADBProcessListenerBuilder,
-                  stderrReader: ADBProcessListenerBuilder): Int = {
-    val args: Seq[String] = adbCmd(command: _*)
-    ADBProcess(args, stdoutReader, stderrReader, Some(timeout)).run()
-  }
-
-  /**
-    * Executes the given command in an asynchronous manner.  A method will be returned that can be used to wait for the
-    *  process and IO threads to complete.
-    *
-    * @param command      the command to run
-    * @param stdoutReader the builder to read stdout
-    * @param stderrReader the builder to read stderr
-    * @return a function that will wait for the process, stdout and stderr thread to join
-    */
-  private def runAsync(command: Seq[String],
-                       stdoutReader: ADBProcessListenerBuilder,
-                       stderrReader: ADBProcessListenerBuilder): WaitFor = {
-    val args: Seq[String] = adbCmd(command: _*)
-    ADBProcess(args, stdoutReader, stderrReader, Some(timeout)).runAsync()
-  }
+  private def runAndParse(command: Seq[String]): (Int, Seq[String], Seq[String]) =
+    CLIProcess.runAndParse(command, Some(timeout), charset)
 
   /**
     * Runs an underlying `ls` command and returns the output as files.
@@ -156,7 +121,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout) {
     * @return the files immediately in the directory
     */
   def list(directoryPath: AndroidPath): Seq[AndroidFile] = {
-    val (_, listing, err) = runAndParse(shellCmd("ls", "-pla", "--full-time", directoryPath.commandLine))
+    val (_, listing, err) = runAndParse(adbShellCmd("ls", "-pla", "--full-time", directoryPath.commandLine))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running `list`: " + err.mkString("\n"))
     }
@@ -173,7 +138,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout) {
     * @return all files and folders in the given folder's directory tree
     */
   def listRecursive(directoryPath: AndroidPath): Seq[AndroidFile] = {
-    val (_, listings, err) = runAndParse(shellCmd("ls", "-Rpla", "--full-time", directoryPath.commandLine))
+    val (_, listings, err) = runAndParse(adbShellCmd("ls", "-Rpla", "--full-time", directoryPath.commandLine))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running recursive `list`: " + err.mkString("\n"))
     }
@@ -222,7 +187,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout) {
     */
   private def findCmd(directoryPath: AndroidPath, params: Seq[String]): Seq[AndroidPath] = {
     val args: Seq[String] = Seq("find") ++ Seq(directoryPath.commandLine) ++ params
-    val (_, found, err) = runAndParse(shellCmd(args: _*))
+    val (_, found, err) = runAndParse(adbShellCmd(args: _*))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running `find`: " + err.mkString("\n"))
     }
@@ -239,7 +204,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout) {
   def stat(path: AndroidPath): Option[AndroidFile] = {
     // adb -d shell stat -c '%Y %F' '/storage/0123-4567/Music/'
     val args = Seq(s"stat -c '%Y %F' ${path.commandLine}")
-    val (_, output, err) = runAndParse(shellCmd(args: _*))
+    val (_, output, err) = runAndParse(adbShellCmd(args: _*))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running `stat`: " + err.mkString("\n"))
     }
@@ -317,7 +282,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout) {
     * @return the sha1 hash of the file
     */
   def sha1sum(path: AndroidPath): String = {
-    val (_, output, err) = runAndParse(shellCmd("sha1sum", path.commandLine))
+    val (_, output, err) = runAndParse(adbShellCmd("sha1sum", path.commandLine))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running `sha1sum`: " + err.mkString("\n"))
     }
@@ -353,7 +318,8 @@ class ADBCommandLine(val device: Device, timeout: Timeout) {
     val removeParentDirectories = "grep -v '\\.\\./'"
     val topEntry = "tail -n 1"
     val (_, output, err) =
-      runAndParse(shellCmd("ls", "-Rplart", "--full-time", path.escaped, "|", removeParentDirectories, "|", topEntry))
+      runAndParse(
+        adbShellCmd("ls", "-Rplart", "--full-time", path.escaped, "|", removeParentDirectories, "|", topEntry))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running mostRecentUpdate: " + err.mkString("\n"))
     }
@@ -368,20 +334,6 @@ class ADBCommandLine(val device: Device, timeout: Timeout) {
   }
 
   /**
-    * Performs `cat` on the file at the given path.  The output of the file will be piped to a listener built by
-    * stdoutListener.
-    *
-    * @param path           the file path to print
-    * @param stdoutListener the builder for the process to handle the file's contents
-    * @param stderrListener the builder for the stderr of the process
-    * @return the exit code of the `cat` process
-    */
-  def transferViaCat(path: AndroidPath,
-                     stdoutListener: ADBProcessListenerBuilder,
-                     stderrListener: ADBProcessListenerBuilder = ADBProcessListener.pipedBuilder(System.err)): Int =
-    run(execOutCmd("cat", path.quoted), stdoutListener, stderrListener)
-
-  /**
     * Creates a [[Process]] to transfer the raw data from the given path.  The caller will then attach to the
     * [[Process]]'s stdout to receive the data.
     *
@@ -389,7 +341,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout) {
     * @return the [[Process]] to transfer the data
     */
   def transferProcess(path: UnixPath): CLIProcess =
-    CLIProcess(adbCmd(execOutCmd("cat", path.quoted): _*))
+    CLIProcess(execOutCmd("cat", path.quoted))
 }
 
 object ADBCommandLine {
