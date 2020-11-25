@@ -6,24 +6,27 @@ import com.hydrangea.android.adb.Device
 
 /**
   * A data structure containing enough information to retrieve a file.
-  *
-  * @param path the path to find the file
-  * @tparam P the type of path structure
   */
-sealed abstract class FileLocation[P <: AbsolutePath](path: P)
+sealed trait FileLocation {
+  type thisType >: this.type <: FileLocation
 
-sealed abstract class WindowsFileLocation[P <: WindowsPath2](path: P) extends FileLocation[P](path) {
+  def path: AbsolutePath
 
-  /**
-    * Returns this file as a native JVM object.
-    *
-    * @return this file as a native JVM object
-    */
-  def javaPath: Path = Path.of(path.raw)
+  def ++(relativePath: RelativePath): thisType
 }
 
-case class LocalWindowsLocation(path: LocalWindowsPath) extends WindowsFileLocation[LocalWindowsPath](path)
+case class LocalFileLocation(path: AbsolutePath) extends FileLocation {
+  override type thisType = LocalFileLocation
 
-case class WindowsNetworkLocation(path: WindowsNetworkPath) extends WindowsFileLocation[WindowsNetworkPath](path)
+  override def ++(relativePath: RelativePath): LocalFileLocation =
+    LocalFileLocation(path ++ relativePath)
 
-case class AndroidLocation(device: Device, path: UnixPath) extends FileLocation[UnixPath](path)
+  def toJavaPath: Path = Path.of(path.raw)
+}
+
+case class AndroidLocation(device: Device, path: AbsolutePath) extends FileLocation {
+  override type thisType = AndroidLocation
+
+  override def ++(relativePath: RelativePath): AndroidLocation =
+    AndroidLocation(device, path ++ relativePath)
+}

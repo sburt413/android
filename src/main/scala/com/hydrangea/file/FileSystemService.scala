@@ -11,10 +11,10 @@ object FileSystemService {
   type ReadLambda[A] = InputStream => A
   val blackhole: ReadLambda[Unit] = _ => ()
 
-  def read[A](location: FileLocation[_])(readerFn: ReadLambda[A]): A =
+  def read[A](location: FileLocation)(readerFn: ReadLambda[A]): A =
     location match {
-      case windowsLocation: WindowsFileLocation[_] =>
-        readerFn(Files.newInputStream(windowsLocation.javaPath))
+      case localLocation: LocalFileLocation =>
+        readerFn(Files.newInputStream(localLocation.toJavaPath))
       case androidLocation: AndroidLocation =>
         readFromDevice(androidLocation)(readerFn)
     }

@@ -4,7 +4,7 @@ import java.io.InputStream
 
 import com.hydrangea.android.adb.{ADB, ADBCommandLine, Device}
 import com.hydrangea.android.file.{AndroidPath, AndroidRegularFile}
-import com.hydrangea.file.{AndroidLocation, FileSystemService, UnixPath}
+import com.hydrangea.file.{AbsolutePath, AndroidLocation, FileSystemService}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.tagger.TikaTagger
 import org.apache.commons.io.IOUtils
@@ -28,7 +28,7 @@ class ADBDriver extends AnyFlatSpec {
     val record: TrackRecord = TikaTagger.tag(commandline, file)
     println(s"Parsed record: $record")
 
-    val srcPath: UnixPath = filePath.raw.toUnixPath
+    val srcPath: AbsolutePath = filePath.raw.toUnixPath
     val start: Long = System.currentTimeMillis()
     val srcLocation: AndroidLocation = AndroidLocation(device, srcPath)
     FileSystemService.copyFromDevice(srcLocation, "F:\\output.mp3".toLocalWindowsPath)

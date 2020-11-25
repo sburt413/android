@@ -5,7 +5,7 @@ import java.nio.file.{Files, Path}
 
 import com.hydrangea.android.adb.ADBCommandLine
 import com.hydrangea.android.file.{AndroidFile, VirtualFile, WindowsFile, WindowsPath}
-import com.hydrangea.file.{AndroidLocation, FileLocation, FileSystemService, WindowsFileLocation}
+import com.hydrangea.file.{AndroidLocation, FileLocation, FileSystemService, LocalFileLocation}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.track.Tag
 import org.apache.commons.codec.digest.DigestUtils
@@ -31,10 +31,10 @@ object TikaTagger {
     }
   }
 
-  def tag(location: FileLocation[_]): Tag =
+  def tag(location: FileLocation): Tag =
     location match {
-      case windowsLocation: WindowsFileLocation[_] => tag(windowsLocation.javaPath)
-      case androidLocation: AndroidLocation        => tagAndroid(androidLocation)
+      case localLocation: LocalFileLocation => tag(localLocation.toJavaPath)
+      case androidLocation: AndroidLocation => tagAndroid(androidLocation)
     }
 
   private def tagAndroid(androidLocation: AndroidLocation): Tag = {

@@ -8,7 +8,7 @@ import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForDirectories, Fo
 import com.hydrangea.android.adb.ls.LsParser
 import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
-import com.hydrangea.file.UnixPath
+import com.hydrangea.file.AbsolutePath
 import com.hydrangea.process.{CLIProcess, Timeout}
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -340,7 +340,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     * @param path the path of the file to transfer
     * @return the [[Process]] to transfer the data
     */
-  def transferProcess(path: UnixPath): CLIProcess =
+  def transferProcess(path: AbsolutePath): CLIProcess =
     CLIProcess(execOutCmd("cat", path.quoted))
 }
 

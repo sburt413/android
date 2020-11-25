@@ -1,67 +1,95 @@
 package com.hydrangea.file
 
-import java.nio.file.Path
-
-sealed abstract class AbsolutePath(val segments: Seq[String], separator: Char) {
+case class AbsolutePath(base: PathBase, segments: Seq[String]) {
   import FilePath._
 
-  type thisType >: this.type <: AbsolutePath
-
-  def root: String
-
-  def raw: String = root ++ segments.mkString(separator.toString)
+  def raw: String = base.root ++ segments.mkString(base.pathSeparator.toString)
   def escaped: String = "\"" + raw.escape(' ').escape('&').escape('\'').escape('(').escape(')') + "\""
   def quoted: String = "\"" + raw + "\""
 
-  def relativePath(from: thisType): RelativePath = {
-    if (!this.root.equals(from.root)) {
-      throw new IllegalArgumentException(s"File root does not match: ${this.root} != ${from.root}")
+  def relativePath(from: AbsolutePath): RelativePath = {
+    if (!base.root.equals(base.root)) {
+      throw new IllegalArgumentException(s"File root does not match: ${this.base.root} != ${from.base.root}")
     } else {
       RelativePath(this.segments).relativeTo(from.segments)
     }
   }
 
-  def ++(relativePath: RelativePath): thisType
+  def ++(relativePath: RelativePath): AbsolutePath =
+    copy(segments = segments ++ relativePath.segments)
 
-  def rebase[P <: AbsolutePath](from: thisType, to: P)(implicit builder: AbsolutePathBuilder[P]): P =
-    builder.build(to, this.relativePath(from))
+  def rebase(from: AbsolutePath, to: AbsolutePath): AbsolutePath =
+    to ++ this.relativePath(from)
 
   override def toString: String = raw
 }
 
-sealed trait WindowsPath2 extends AbsolutePath {
-  def toJava: Path = Path.of(raw)
+sealed trait PathBase {
+  def root: String
+  def pathSeparator: Char
 }
 
-case class LocalWindowsPath(driveLetter: String, override val segments: Seq[String])
-    extends AbsolutePath(segments, FilePath.WindowsSeparator)
-    with WindowsPath2 {
-  override type thisType = LocalWindowsPath
+sealed trait WindowsPathBase extends PathBase {
+  val pathSeparator: Char = FilePath.WindowsSeparator
+}
 
+case class LocalWindowsPathBase(driveLetter: Char) extends WindowsPathBase {
   val root = driveLetter + ":\\"
-
-  override def ++(relativePath: RelativePath): LocalWindowsPath =
-    LocalWindowsPath(driveLetter, segments ++ relativePath.segments)
 }
 
-case class WindowsNetworkPath(host: String, override val segments: Seq[String])
-    extends AbsolutePath(segments, FilePath.WindowsSeparator)
-    with WindowsPath2 {
-  override type thisType = WindowsNetworkPath
-
+case class WindowsNetworkPathBase(host: String) extends WindowsPathBase {
   val root = "\\\\" + host + "\\"
-
-  override def ++(relativePath: RelativePath): WindowsNetworkPath =
-    WindowsNetworkPath(host, segments ++ relativePath.segments)
 }
 
-case class UnixPath(override val segments: Seq[String]) extends AbsolutePath(segments, FilePath.UnixSeparator) {
-  override type thisType = UnixPath
-
+object UnixPathBase extends PathBase {
+  val pathSeparator: Char = FilePath.UnixSeparator
   val root = "/"
+}
 
-  override def ++(relativePath: RelativePath): UnixPath =
-    UnixPath(segments ++ relativePath.segments)
+object AbsolutePath {
+  import FilePath._
+
+  def localWindowsFile(driveLetter: Char, segments: Seq[String]): AbsolutePath =
+    AbsolutePath(LocalWindowsPathBase(driveLetter), segments)
+
+  def localWindowsFile(pathStr: String): AbsolutePath = {
+    val splitIndex =
+      if (pathStr.contains(WindowsSeparator)) {
+        pathStr.indexOf(WindowsSeparator)
+      } else {
+        pathStr.length
+      }
+
+    val (driveColon, tail) = pathStr.splitAt(splitIndex)
+    val driveLetter: Char = driveColon.charAt(0)
+    val segments: Seq[String] = trim(tail, WindowsSeparator).split(WindowsSeparator).filterNot(_.isBlank)
+    localWindowsFile(driveLetter, segments)
+  }
+
+  def windowsNetworkFile(host: String, segments: Seq[String]): AbsolutePath =
+    AbsolutePath(WindowsNetworkPathBase(host), segments)
+
+  def windowsNetworkFile(pathStr: String): AbsolutePath = {
+    val splitIndex =
+      if (pathStr.indexOf(WindowsSeparator, 2) >= 0) {
+        pathStr.indexOf(WindowsSeparator, 2)
+      } else {
+        pathStr.length
+      }
+
+    val (root, segmentStr) = pathStr.splitAt(splitIndex)
+    val host: String = root.substring(2)
+    val segments: Seq[String] = trim(segmentStr, WindowsSeparator).split(WindowsSeparator).filterNot(_.isBlank)
+    windowsNetworkFile(host, segments)
+  }
+
+  def unixFile(segments: Seq[String]): AbsolutePath =
+    AbsolutePath(UnixPathBase, segments)
+
+  def unixFile(pathStr: String): AbsolutePath = {
+    val sanitized: String = trim(pathStr.substring(1), UnixSeparator)
+    unixFile(sanitized.split(UnixSeparator).filterNot(_.isBlank))
+  }
 }
 
 case class RelativePath(segments: Seq[String]) {
@@ -82,25 +110,6 @@ case class RelativePath(segments: Seq[String]) {
       }
     }
   }
-
-  def from[P <: AbsolutePath](root: P)(implicit builder: AbsolutePathBuilder[P]): P = builder.build(root, this)
-}
-
-protected[file] trait AbsolutePathBuilder[P <: AbsolutePath] {
-  def build(base: P, relativePath: RelativePath): P
-}
-
-object LocalWindowsPath {
-  implicit val windowsBuilder: AbsolutePathBuilder[LocalWindowsPath] = (base, relativePath) => base ++ relativePath
-}
-
-object WindowsNetworkPath {
-  implicit val networkPathBuilder: AbsolutePathBuilder[WindowsNetworkPath] = (base, relativePath) =>
-    base ++ relativePath
-}
-
-object UnixPath {
-  implicit val unixBuilder: AbsolutePathBuilder[UnixPath] = (base, relativePath) => base ++ relativePath
 }
 
 object FilePath {
@@ -110,38 +119,11 @@ object FilePath {
   implicit class StringPathOps(str: String) {
     def escape(ch: Char): String = str.replace("" + ch, s"\\$ch")
 
-    def toUnixPath: UnixPath = {
-      val sanitized: String = sanitize(str.substring(1), UnixSeparator)
-      UnixPath(sanitized.split(UnixSeparator).filterNot(_.isBlank))
-    }
+    def toLocalWindowsPath: AbsolutePath = AbsolutePath.localWindowsFile(str)
 
-    def toLocalWindowsPath: LocalWindowsPath = {
-      val splitIndex =
-        if (str.contains(WindowsSeparator)) {
-          str.indexOf(WindowsSeparator)
-        } else {
-          str.length
-        }
+    def toWindowsNetworkPath: AbsolutePath = AbsolutePath.windowsNetworkFile(str)
 
-      val (driveColon, tail) = str.splitAt(splitIndex)
-      val driveLetter: Char = driveColon.charAt(0)
-      val segments: Seq[String] = sanitize(tail, WindowsSeparator).split(WindowsSeparator).filterNot(_.isBlank)
-      LocalWindowsPath(driveLetter.toString, segments)
-    }
-
-    def toWindowsNetworkPath: WindowsNetworkPath = {
-      val splitIndex =
-        if (str.indexOf(WindowsSeparator, 2) >= 0) {
-          str.indexOf(WindowsSeparator, 2)
-        } else {
-          str.length
-        }
-
-      val (root, segmentStr) = str.splitAt(splitIndex)
-      val host: String = root.substring(2)
-      val segments: Seq[String] = sanitize(segmentStr, WindowsSeparator).split(WindowsSeparator).filterNot(_.isBlank)
-      WindowsNetworkPath(host, segments)
-    }
+    def toUnixPath: AbsolutePath = AbsolutePath.unixFile(str)
 
     def toRelativePath: RelativePath = {
       val separator =
@@ -151,12 +133,12 @@ object FilePath {
           UnixSeparator
         }
 
-      val pathStr: String = sanitize(str, separator)
+      val pathStr: String = trim(str, separator)
       RelativePath(pathStr.split(separator).filterNot(_.isBlank))
     }
   }
 
-  private def sanitize(str: String, separator: Char): String = {
+  def trim(str: String, separator: Char): String = {
     val startIndex =
       if (str.startsWith(separator.toString)) {
         1
