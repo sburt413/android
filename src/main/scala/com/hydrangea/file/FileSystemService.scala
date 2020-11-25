@@ -19,9 +19,6 @@ object FileSystemService {
         readFromDevice(androidLocation)(readerFn)
     }
 
-//  def readFromDevice[A](commandLine: ADBCommandLine, path: UnixPath)(readStdout: ReadLambda[A]): A =
-//    readFromDeviceWithErrors(commandLine, path)(readStdout, blackhole)
-
   def readFromDevice[A](androidLocation: AndroidLocation)(readStdout: ReadLambda[A]): A = {
     val commandLine: ADBCommandLine = androidLocation.device.commandline()
     val process: CLIProcess = commandLine.transferProcess(androidLocation.path)
