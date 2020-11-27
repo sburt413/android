@@ -32,15 +32,15 @@ class FilePathTest extends AnyFlatSpec {
   it should "append relative paths" in {
     val dWindowsSystem32: AbsolutePath = AbsolutePath.localWindowsFile("D:\\Windows\\system32")
     val driversPath: AbsolutePath = dWindowsSystem32 ++ RelativePath(Seq("etc", "drivers"))
-    driversPath should equal(AbsolutePath(LocalWindowsPathBase('D'), Seq("Windows", "system32", "etc", "drivers")))
+    driversPath should equal(AbsolutePath(LocalWindowsPathBase('D'), List("Windows", "system32", "etc", "drivers")))
 
     val halJupiterMission: AbsolutePath = AbsolutePath.windowsNetworkFile("\\\\hal9k\\Jupiter\\mission")
     val secretPath: AbsolutePath = halJupiterMission ++ RelativePath(Seq("secret"))
-    secretPath should equal(AbsolutePath(WindowsNetworkPathBase("hal9k"), Seq("Jupiter", "mission", "secret")))
+    secretPath should equal(AbsolutePath(WindowsNetworkPathBase("hal9k"), List("Jupiter", "mission", "secret")))
 
     val usr: AbsolutePath = AbsolutePath.unixFile("/usr")
     val binPath: AbsolutePath = usr ++ RelativePath(Seq("local", "bin"))
-    binPath should equal(AbsolutePath(UnixPathBase, Seq("usr", "local", "bin")))
+    binPath should equal(AbsolutePath(UnixPathBase, List("usr", "local", "bin")))
   }
 
   it should "create relative paths" in {
@@ -66,14 +66,14 @@ class FilePathTest extends AnyFlatSpec {
     val destUsr: AbsolutePath = AbsolutePath.unixFile("/usr")
 
     val rebasedHost: AbsolutePath = srcHost.rebase(srcWindows, destUsr)
-    rebasedHost should equal(AbsolutePath(UnixPathBase, Seq("usr", "etc", "hosts")))
+    rebasedHost should equal(AbsolutePath(UnixPathBase, List("usr", "etc", "hosts")))
 
     val srcUsr: AbsolutePath = AbsolutePath.unixFile("/usr")
     val srcBin: AbsolutePath = AbsolutePath.unixFile("/usr/local/bin")
     val destSystem32: AbsolutePath = AbsolutePath.localWindowsFile("E:\\Windows\\system32")
 
     val rebasedBin: AbsolutePath = srcBin.rebase(srcUsr, destSystem32)
-    rebasedBin should equal(AbsolutePath(LocalWindowsPathBase('E'), Seq("Windows", "system32", "local", "bin")))
+    rebasedBin should equal(AbsolutePath(LocalWindowsPathBase('E'), List("Windows", "system32", "local", "bin")))
   }
 
   it should "escape special characters" in {

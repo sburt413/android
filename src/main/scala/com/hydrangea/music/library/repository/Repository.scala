@@ -1,5 +1,5 @@
 package com.hydrangea.music.library.repository
 
-import com.hydrangea.android.file.WindowsDirectory
+import com.hydrangea.file.LocalDirectoryData
 
-case class Repository(rootDirectory: WindowsDirectory)
+case class Repository(rootDirectory: LocalDirectoryData)

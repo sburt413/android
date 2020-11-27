@@ -8,7 +8,8 @@ import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForDirectories, Fo
 import com.hydrangea.android.adb.ls.LsParser
 import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
-import com.hydrangea.file.AbsolutePath
+import com.hydrangea.file.FilePath._
+import com.hydrangea.file.{AbsolutePath, AndroidDirectoryData, AndroidFileData, AndroidLocation, AndroidRegularFileData}
 import com.hydrangea.process.{CLIProcess, Timeout}
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -120,15 +121,23 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     * @param directoryPath the path to the directory to list
     * @return the files immediately in the directory
     */
-  def list(directoryPath: AndroidPath): Seq[AndroidFile] = {
+  def list(directoryPath: AbsolutePath): Seq[AndroidFileData] = {
     val (_, listing, err) = runAndParse(adbShellCmd("ls", "-pla", "--full-time", directoryPath.commandLine))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running `list`: " + err.mkString("\n"))
     }
 
     for {
-      (fileName, lastModified) <- LsParser.parseDirectory(listing)
-    } yield AndroidFile(directoryPath :+ fileName, lastModified)
+      (fileName, isDirectory, lastModified) <- LsParser.parseDirectory(listing)
+    } yield {
+      val path: AbsolutePath = directoryPath ++ fileName
+      val location = AndroidLocation(device, path)
+      if (isDirectory) {
+        AndroidDirectoryData(location, lastModified)
+      } else {
+        AndroidRegularFileData(location, lastModified)
+      }
+    }
   }
 
   /**
@@ -137,15 +146,22 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     * @param directoryPath the path to the directory to list
     * @return all files and folders in the given folder's directory tree
     */
-  def listRecursive(directoryPath: AndroidPath): Seq[AndroidFile] = {
+  def listRecursive(directoryPath: AbsolutePath): Seq[AndroidFileData] = {
     val (_, listings, err) = runAndParse(adbShellCmd("ls", "-Rpla", "--full-time", directoryPath.commandLine))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running recursive `list`: " + err.mkString("\n"))
     }
 
     for {
-      (path, fileName, lastModified) <- LsParser.parseDirectories(listings)
-    } yield AndroidFile(path :+ fileName, lastModified)
+      (path, isDirectory, lastModified) <- LsParser.parseDirectories(listings)
+    } yield {
+      val location = AndroidLocation(device, path)
+      if (isDirectory) {
+        AndroidDirectoryData(location, lastModified)
+      } else {
+        AndroidRegularFileData(location, lastModified)
+      }
+    }
   }
 
   /**
@@ -156,7 +172,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     * @param options any additional criteria to add to the find command
     * @return all paths found by the command
     */
-  def find(directoryPath: AndroidPath, option0: FindOption, options: FindOption*): Seq[AndroidPath] =
+  def find(directoryPath: AbsolutePath, option0: FindOption, options: FindOption*): Seq[AbsolutePath] =
     findCmd(directoryPath, (Seq(option0) ++ options).flatMap(opt => Seq(opt.param, opt.value)))
 
   /**
@@ -166,7 +182,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     * @param options any additional criteria to add to the find command
     * @return all paths found by the command
     */
-  def findDirectories(directoryPath: AndroidPath, options: FindOption*): Seq[AndroidPath] =
+  def findDirectories(directoryPath: AbsolutePath, options: FindOption*): Seq[AbsolutePath] =
     find(directoryPath, ForDirectories, options: _*)
 
   /**
@@ -175,33 +191,33 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     * @param directoryPath the path to the directory to find from
     * @return all paths found by the command
     */
-  def findRegularFiles(directoryPath: AndroidPath): Seq[AndroidPath] =
+  def findRegularFiles(directoryPath: AbsolutePath): Seq[AbsolutePath] =
     find(directoryPath, ForRegularFiles)
 
   /**
-    * Runs the `find` command in an ADB shell and parses [[AndroidPath]]s from the output.
+    * Runs the `find` command in an ADB shell and parses [[AbsolutePath]]s from the output.
     *
     * @param directoryPath the path to the directory to find from
     * @param params        the commandline parameters to apply
-    * @return [[AndroidPath]]s found by the shell command
+    * @return [[AbsolutePath]]s found by the shell command
     */
-  private def findCmd(directoryPath: AndroidPath, params: Seq[String]): Seq[AndroidPath] = {
+  private def findCmd(directoryPath: AbsolutePath, params: Seq[String]): Seq[AbsolutePath] = {
     val args: Seq[String] = Seq("find") ++ Seq(directoryPath.commandLine) ++ params
     val (_, found, err) = runAndParse(adbShellCmd(args: _*))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running `find`: " + err.mkString("\n"))
     }
 
-    found.map(AndroidPath.apply)
+    found.map(_.toUnixPath)
   }
 
   /**
-    * Runs file status (stat) on a given [[AndroidPath]] and returns the [[AndroidFile]] found.
+    * Runs file status (stat) on a given [[AbsolutePath]] and returns the [[AndroidFile]] found.
     *
     * @param path the path to check
     * @return the file, if present; otherwise [[None]] if no file is found
     */
-  def stat(path: AndroidPath): Option[AndroidFile] = {
+  def stat(path: AbsolutePath): Option[AndroidFileData] = {
     // adb -d shell stat -c '%Y %F' '/storage/0123-4567/Music/'
     val args = Seq(s"stat -c '%Y %F' ${path.commandLine}")
     val (_, output, err) = runAndParse(adbShellCmd(args: _*))
@@ -219,10 +235,11 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
         val modifiedTime: Instant = Instant.ofEpochSecond(modifiedEpochSeconds.toLong)
         val fileType: String = columns(1)
 
+        val location: AndroidLocation = AndroidLocation(device, path)
         if (fileType == "directory") {
-          AndroidDirectory(path, modifiedTime)
+          AndroidDirectoryData(location, modifiedTime)
         } else {
-          AndroidRegularFile(path, modifiedTime)
+          AndroidRegularFileData(location, modifiedTime)
         }
       })
   }
@@ -233,47 +250,8 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     * @param path the path to check
     * @return the file, if present; otherwise throws an error
     */
-  def statOrThrow(path: AndroidPath): AndroidFile =
+  def statOrThrow(path: AbsolutePath): AndroidFileData =
     stat(path).getOrElse(throw new IllegalStateException(s"No file found for path: $path"))
-
-  /**
-    * Run's ADB's native pull command on the device.  The underlying adb implementation is unreliable on Windows
-    * computers.
-    *
-    * @param sourceDirectory the directory on the device to pull from
-    * @param targetDirectory the target directory on the host computer
-    * @return a map of the file paths pulled from the device to their destination
-    */
-  def pull(sourceDirectory: AndroidDirectory, targetDirectory: WindowsDirectory): Map[AndroidPath, WindowsPath] = {
-    val args: Seq[String] = Seq("pull", "-a", sourceDirectory.path.commandLine, targetDirectory.path.commandLine)
-    // For some reason the pull command spit output to the error stream
-    val (_, _, output) = runAndParse(args)
-    val fileLines: Seq[String] = output.slice(1, output.size - 2)
-    fileLines
-      .map(line => {
-        val split: Array[String] = line.replace("pull: ", "").split(" -> ")
-        val sourcePath = AndroidPath(split(0))
-
-        val destPath: WindowsPath = AndroidPath(split(1)).toWindows
-        sourcePath -> destPath
-      })
-      .toMap
-  }
-
-  /**
-    * Pulls a single file using ADB's native pull.  The underlying adb implementation is unreliable on Windows computers.
-    *
-    * @param source the directory on the device to pull from
-    * @param target the target directory on the host computer
-    * @return the target path if the pull was successful
-    */
-  def pull(source: AndroidRegularFile, target: WindowsFile): Option[VirtualPath] = {
-    // For some reason the pull command spits its output to the error stream
-    val command = Seq("pull", "-a", source.path.commandLine, target.path.commandLine)
-    val (_, _, output) = runAndParse(command)
-    // 2938 KB/s (97352327 bytes in 32.355s)
-    Option(output.head).filter(_.contains("bytes in")).map(_ => target.path)
-  }
 
   /**
     * Runs a hash on the file at the given path using sha1.
@@ -281,7 +259,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     * @param path the path to the file to hash
     * @return the sha1 hash of the file
     */
-  def sha1sum(path: AndroidPath): String = {
+  def sha1sum(path: AbsolutePath): String = {
     val (_, output, err) = runAndParse(adbShellCmd("sha1sum", path.commandLine))
     if (err.nonEmpty) {
       throw new RuntimeException("Error running `sha1sum`: " + err.mkString("\n"))
@@ -296,12 +274,12 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     * @param path the path to search under
     * @return all files under the given path
     */
-  def scan(path: AndroidPath): Seq[AndroidFile] = {
-    val directories: Seq[AndroidPath] = findDirectories(path, FindDepth(1))
-    directories.indices.flatMap { index =>
-      val directoryPath: AndroidPath = directories(index)
-      if ((index + 1) % 10 == 0 || index == 0 || index == directories.size - 1) {
-        logger.info(s"Scanning: ${index + 1}/${directories.size}")
+  def scan(path: AbsolutePath): Seq[AndroidFileData] = {
+    val directoryPaths: Seq[AbsolutePath] = findDirectories(path, FindDepth(1))
+    directoryPaths.indices.flatMap { index =>
+      val directoryPath: AbsolutePath = directoryPaths(index)
+      if ((index + 1) % 10 == 0 || index == 0 || index == directoryPaths.size - 1) {
+        logger.info(s"Scanning: ${index + 1}/${directoryPaths.size}")
       }
 
       listRecursive(directoryPath)
@@ -314,7 +292,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     * @param path the path to search under
     * @return the most recently updated, if any files exist under the path
     */
-  def mostRecentUpdate(path: AndroidPath): Option[Instant] = {
+  def mostRecentUpdate(path: AbsolutePath): Option[Instant] = {
     val removeParentDirectories = "grep -v '\\.\\./'"
     val topEntry = "tail -n 1"
     val (_, output, err) =
@@ -327,7 +305,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     LsParser
       .parseFile(output.head)
       .map({
-        case (_, mostRecentUpdate) =>
+        case (_, _, mostRecentUpdate) =>
           logger.info(s"Most recent update inside $path: $mostRecentUpdate")
           mostRecentUpdate
       })

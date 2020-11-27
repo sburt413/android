@@ -4,8 +4,8 @@ import java.time.Instant
 
 import argonaut.Argonaut._
 import argonaut._
-import com.hydrangea.android.file._
 import com.hydrangea.codec.Codecs._
+import com.hydrangea.file.{AbsolutePath, FileData}
 
 /**
   * An object representing the current state of an index of music files.  The record contains the last updated times of
@@ -15,7 +15,7 @@ import com.hydrangea.codec.Codecs._
   * @param rootDirectoryPath the root music directory on the device
   * @param childRecords      records of top level folders containing music
   */
-case class IndexRecord[P <: VirtualPath](val rootDirectoryPath: P, val childRecords: List[LastIndexedRecord[P]]) {
+case class IndexRecord(rootDirectoryPath: AbsolutePath, childRecords: List[LastIndexedRecord]) {
 
   /**
     * Merges the given [[RecordCandidate]] with any existing record.  If any record exists, then the most recent
@@ -25,8 +25,8 @@ case class IndexRecord[P <: VirtualPath](val rootDirectoryPath: P, val childReco
     * @param candidate the candidate record
     * @return the updated [[LastIndexedRecord]]; otherwise, a new record for the directory
     */
-  private def mergedRecord(candidate: RecordCandidate[P]): LastIndexedRecord[P] = {
-    val existingRecordForDir: Option[LastIndexedRecord[P]] =
+  private def mergedRecord(candidate: RecordCandidate): LastIndexedRecord = {
+    val existingRecordForDir: Option[LastIndexedRecord] =
       childRecords.find(_.directoryPath.equals(candidate.directoryPath))
 
     existingRecordForDir
@@ -40,8 +40,8 @@ case class IndexRecord[P <: VirtualPath](val rootDirectoryPath: P, val childReco
     * @param candidates the values to merge into this index.
     * @return an updated [[IndexRecord]] containing the given directories
     */
-  def addListings(candidates: List[RecordCandidate[P]]): IndexRecord[P] = {
-    val directoriesRecords: List[LastIndexedRecord[P]] =
+  def addListings(candidates: List[RecordCandidate]): IndexRecord = {
+    val directoriesRecords: List[LastIndexedRecord] =
       candidates.map(mergedRecord)
 
     updateRecords(directoriesRecords)
@@ -55,12 +55,12 @@ case class IndexRecord[P <: VirtualPath](val rootDirectoryPath: P, val childReco
     *                        ancestor
     * @return a new [[IndexRecord]] containing only the given directories and the discarded records
     */
-  def reindex(candidates: List[RecordCandidate[P]]): (IndexRecord[P], List[LastIndexedRecord[P]]) = {
-    val records: List[LastIndexedRecord[P]] =
+  def reindex(candidates: List[RecordCandidate]): (IndexRecord, List[LastIndexedRecord]) = {
+    val records: List[LastIndexedRecord] =
       candidates.map(mergedRecord)
 
     val candidatePathStrings: List[String] = candidates.map(_.directoryPath.raw)
-    val excludedRecords: List[LastIndexedRecord[P]] =
+    val excludedRecords: List[LastIndexedRecord] =
       childRecords.filterNot(record => candidatePathStrings.contains(record.directoryPath.raw))
 
     (IndexRecord(rootDirectoryPath, records), excludedRecords)
@@ -72,7 +72,7 @@ case class IndexRecord[P <: VirtualPath](val rootDirectoryPath: P, val childReco
     * @param newChildRecord the record to update
     * @return an updated [[IndexRecord]] containing the given record
     */
-  def updateRecord(newChildRecord: LastIndexedRecord[P]): IndexRecord[P] =
+  def updateRecord(newChildRecord: LastIndexedRecord): IndexRecord =
     updateRecords(List(newChildRecord))
 
   /**
@@ -82,9 +82,9 @@ case class IndexRecord[P <: VirtualPath](val rootDirectoryPath: P, val childReco
     * @param newChildRecords the records to update
     * @return an updated [[IndexRecord]] containing the given records
     */
-  def updateRecords(newChildRecords: List[LastIndexedRecord[P]]): IndexRecord[P] = {
-    val newChildPaths: List[P] = newChildRecords.map(_.directoryPath)
-    val updatedRecords: List[LastIndexedRecord[P]] =
+  def updateRecords(newChildRecords: List[LastIndexedRecord]): IndexRecord = {
+    val newChildPaths: List[AbsolutePath] = newChildRecords.map(_.directoryPath)
+    val updatedRecords: List[LastIndexedRecord] =
       childRecords.filterNot(existing => newChildPaths.contains(existing.directoryPath)) ++ newChildRecords
     IndexRecord(rootDirectoryPath, updatedRecords)
   }
@@ -94,7 +94,7 @@ case class IndexRecord[P <: VirtualPath](val rootDirectoryPath: P, val childReco
     *
     * @return all records for which the source directory was more recently updated than this index
     */
-  def needsUpdating: List[LastIndexedRecord[P]] = childRecords.filter(_.needsUpdate)
+  def needsUpdating: List[LastIndexedRecord] = childRecords.filter(_.needsUpdate)
 
   /**
     * Returns whether any records are currently out of date with the source directory.
@@ -107,39 +107,31 @@ case class IndexRecord[P <: VirtualPath](val rootDirectoryPath: P, val childReco
     * Returns a [[List]] of all records that need updating, base on least recently updated.
     * @return
     */
-  def calculateUpdateSchedule: List[P] = needsUpdating.sortBy(_.lastUpdate).map(_.directoryPath)
+  def calculateUpdateSchedule: List[AbsolutePath] = needsUpdating.sortBy(_.lastUpdate).map(_.directoryPath)
 }
 
 object IndexRecord {
-  def create[P <: VirtualPath](rootDirectoryPath: P, candidates: List[RecordCandidate[P]]): IndexRecord[P] = {
-    val records: List[LastIndexedRecord[P]] = candidates.map(_.toLastIndexedRecord)
+  def create(rootDirectoryPath: AbsolutePath, candidates: List[RecordCandidate]): IndexRecord = {
+    val records: List[LastIndexedRecord] = candidates.map(_.toLastIndexedRecord)
     IndexRecord(rootDirectoryPath, records)
   }
-
-  type DeviceIndexRecord = IndexRecord[AndroidPath]
-  type RepositoryIndexRecord = IndexRecord[WindowsPath]
 
   private val rootDirectoryPathKey = "rootDirectoryPath"
   private val childRecordsKey = "childRecords"
 
-  def codec[P <: VirtualPath](implicit encodePath: EncodeJson[P],
-                              decodeJson: DecodeJson[P]): CodecJson[IndexRecord[P]] =
-    casecodec2(IndexRecord.apply[P], IndexRecord.unapply[P])(rootDirectoryPathKey, childRecordsKey)
+  implicit def codec: CodecJson[IndexRecord] =
+    casecodec2(IndexRecord.apply, IndexRecord.unapply)(rootDirectoryPathKey, childRecordsKey)
 
-  implicit val androidCodec: CodecJson[IndexRecord[AndroidPath]] = codec[AndroidPath]
-
-  implicit val windowsCodec: CodecJson[IndexRecord[WindowsPath]] = codec[WindowsPath]
-
-//  implicit def encodeJson[P <: VirtualPath](implicit encodePath: EncodeJson[P]): EncodeJson[IndexRecord[P]] =
+//  implicit def encodeJson[P <: VirtualPath](implicit encodePath: EncodeJson): EncodeJson[IndexRecord] =
 //    EncodeJson(record =>
 //      (rootDirectoryPathKey := record.rootDirectoryPath) ->: (childRecordsKey := record.childRecords) ->: jEmptyObject)
 //
-//  implicit def decodeJson[P <: VirtualPath](implicit decodePath: DecodeJson[P]): DecodeJson[IndexRecord[P]] =
+//  implicit def decodeJson[P <: VirtualPath](implicit decodePath: DecodeJson): DecodeJson[IndexRecord] =
 //    DecodeJson(record =>
 //      for {
-//        rootDirectoryPath <- (record --\ rootDirectoryPathKey).as[P]
-//        childRecords <- (record --\ childRecordsKey).as[List[LastIndexedRecord[P]]]
-//      } yield IndexRecord[P](rootDirectoryPath, childRecords))
+//        rootDirectoryPath <- (record --\ rootDirectoryPathKey).as
+//        childRecords <- (record --\ childRecordsKey).as[List[LastIndexedRecord]]
+//      } yield IndexRecord(rootDirectoryPath, childRecords))
 }
 
 //object IndexRecord {
@@ -169,10 +161,10 @@ object IndexRecord {
   * @param lastUpdate    the latest most recent update time of files under the directory
   * @param lastIndexed   the last time documents for this directory were indexed in Elasticsearch
   */
-case class LastIndexedRecord[P <: VirtualPath](directoryPath: P,
-                                               fileCount: Int,
-                                               lastUpdate: Instant,
-                                               lastIndexed: Option[Instant]) {
+case class LastIndexedRecord(directoryPath: AbsolutePath,
+                             fileCount: Int,
+                             lastUpdate: Instant,
+                             lastIndexed: Option[Instant]) {
   def needsUpdate: Boolean = lastIndexed.map(indexed => lastUpdate.isAfter(indexed)).getOrElse(true)
 
   /**
@@ -181,7 +173,7 @@ case class LastIndexedRecord[P <: VirtualPath](directoryPath: P,
     * @param modifyTime the potential new update time
     * @return an updated record with the most recent update time
     */
-  def updateLastUpdated(modifyTime: Instant): LastIndexedRecord[P] = {
+  def updateLastUpdated(modifyTime: Instant): LastIndexedRecord = {
     val newLastUpdate: Instant = Seq(lastUpdate, modifyTime).max
     copy(lastUpdate = newLastUpdate)
   }
@@ -192,12 +184,12 @@ case class LastIndexedRecord[P <: VirtualPath](directoryPath: P,
     * @param indexedTime the potential new index time
     * @return an updated record with the most recent index time
     */
-  def updateLastIndexed(indexedTime: Instant): LastIndexedRecord[P] = {
+  def updateLastIndexed(indexedTime: Instant): LastIndexedRecord = {
     val newLastIndexed: Instant = Seq(lastIndexed.getOrElse(Instant.EPOCH), indexedTime).max
     copy(lastIndexed = Some(newLastIndexed))
   }
 
-  def updateFileCount(fileCount: Int): LastIndexedRecord[P] =
+  def updateFileCount(fileCount: Int): LastIndexedRecord =
     copy(fileCount = fileCount)
 
   /**
@@ -207,23 +199,18 @@ case class LastIndexedRecord[P <: VirtualPath](directoryPath: P,
     * @param file the file to check
     * @return whether we currently need to index the file
     */
-  def needsIndexing(file: VirtualFile): Boolean =
+  def needsIndexing(file: FileData): Boolean =
     lastIndexed.map(last => file.modifyTime.isAfter(last)).getOrElse(true)
 }
 
 object LastIndexedRecord {
-  implicit def codex[P <: VirtualPath](implicit encodeJson: EncodeJson[P],
-                                       decodeJson: DecodeJson[P]): CodecJson[LastIndexedRecord[P]] =
-    casecodec4(LastIndexedRecord.apply[P], LastIndexedRecord.unapply[P])("directoryPath",
-                                                                         "fileCount",
-                                                                         "lastUpdate",
-                                                                         "lastIndexed")
-
-  implicit val androidCodex: CodecJson[LastIndexedRecord[AndroidPath]] = codex[AndroidPath]
-
-  implicit val windowsCodex: CodecJson[LastIndexedRecord[WindowsPath]] = codex[WindowsPath]
+  implicit def codex: CodecJson[LastIndexedRecord] =
+    casecodec4(LastIndexedRecord.apply, LastIndexedRecord.unapply)("directoryPath",
+                                                                   "fileCount",
+                                                                   "lastUpdate",
+                                                                   "lastIndexed")
 }
 
-case class RecordCandidate[P <: VirtualPath](directoryPath: P, fileCount: Int, lastUpdated: Instant) {
-  def toLastIndexedRecord: LastIndexedRecord[P] = LastIndexedRecord[P](directoryPath, fileCount, lastUpdated, None)
+case class RecordCandidate(directoryPath: AbsolutePath, fileCount: Int, lastUpdated: Instant) {
+  def toLastIndexedRecord: LastIndexedRecord = LastIndexedRecord(directoryPath, fileCount, lastUpdated, None)
 }

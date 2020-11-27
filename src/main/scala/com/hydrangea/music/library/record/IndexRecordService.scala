@@ -5,20 +5,18 @@ import java.nio.charset.Charset
 import java.nio.file.{Files, Path, Paths}
 
 import argonaut.Argonaut._
-import argonaut.{Parse, _}
+import argonaut._
 import com.hydrangea.Configuration
-import com.hydrangea.android.file.VirtualPath
 import com.hydrangea.music.library.IndexName
 import org.apache.commons.io.IOUtils
 import org.slf4j.Logger
 
 import scala.jdk.CollectionConverters._
 
-abstract class IndexRecordService[P <: VirtualPath, R <: IndexRecord[P]](implicit encodeJson: EncodeJson[R],
-                                                                         decodeJson: DecodeJson[R]) {
+abstract class IndexRecordService {
   private val logger: Logger = org.slf4j.LoggerFactory.getLogger(getClass)
 
-  def getRecord(name: IndexName): Option[R] =
+  def getRecord(name: IndexName): Option[IndexRecord] =
     getRecordFile(name)
       .flatMap(index => {
         val fileInput: InputStream = Files.newInputStream(index)
@@ -26,10 +24,10 @@ abstract class IndexRecordService[P <: VirtualPath, R <: IndexRecord[P]](implici
         fileInput.close()
 
         // TODO: Don't flatten away errors
-        Parse.decodeOption[R](fileContents)
+        Parse.decodeOption[IndexRecord](fileContents)
       })
 
-  def writeRecord(name: IndexName, record: R): Unit = {
+  def writeRecord(name: IndexName, record: IndexRecord): Unit = {
     val path: Path = getOrCreateRecordFile(name)
     logger.info(s"Writing record to $path")
     val fileOutput: BufferedWriter = Files.newBufferedWriter(path)

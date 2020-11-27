@@ -1,8 +1,7 @@
 package com.hydrangea.music.library.device
 
-import com.hydrangea.android.file.AndroidPath
-import com.hydrangea.music.library.record.{IndexRecord, IndexRecordService}
+import com.hydrangea.music.library.record.IndexRecordService
 
-object DeviceIndexRecordService extends IndexRecordService[AndroidPath, IndexRecord[AndroidPath]] {
+object DeviceIndexRecordService extends IndexRecordService {
   override protected def fileTag: String = "device"
 }

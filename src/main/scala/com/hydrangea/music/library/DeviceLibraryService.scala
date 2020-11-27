@@ -4,10 +4,9 @@ import java.time.Instant
 
 import com.hydrangea.Configuration
 import com.hydrangea.android.adb.Device
-import com.hydrangea.android.file.VirtualPath._
-import com.hydrangea.android.file.{AndroidDirectory, AndroidPath, AndroidRegularFile, VirtualPath}
+import com.hydrangea.file.FilePath._
+import com.hydrangea.file.{AbsolutePath, AndroidDirectoryData, AndroidFileData, AndroidRegularFileData, FilePath}
 import com.hydrangea.music.library.device._
-import com.hydrangea.music.library.record.IndexRecord.DeviceIndexRecord
 import com.hydrangea.music.library.record._
 import org.slf4j.Logger
 
@@ -18,12 +17,12 @@ import org.slf4j.Logger
 object DeviceLibraryService {
   private val logger: Logger = org.slf4j.LoggerFactory.getLogger(DeviceLibraryService.getClass)
 
-  type DeviceSchedule = Schedule[AndroidPath, AndroidRegularFile]
+  type DeviceSchedule = Schedule[AndroidRegularFileData]
 
   def indexName(device: Device): IndexName = IndexName(device.serial.toLowerCase)
 
-  def createDeviceIndex(device: Device): IndexRecord[AndroidPath] = {
-    val indexRecord: DeviceIndexRecord = createIndexRecord(device)
+  def createDeviceIndex(device: Device): IndexRecord = {
+    val indexRecord: IndexRecord = createIndexRecord(device)
     DeviceIndexRecordService.writeRecord(indexName(device), indexRecord)
     logger.debug(s"Creating elasticsearch index for ${device.serial}")
     IndexService.createIndex(indexName(device))
@@ -32,56 +31,55 @@ object DeviceLibraryService {
     indexRecord
   }
 
-  private def createIndexRecord(device: Device): DeviceIndexRecord =
+  private def createIndexRecord(device: Device): IndexRecord =
     device.withCommandLine() { commandLine =>
-      val musicDirectoryPath: AndroidPath = Configuration.deviceMusicDirectory.toAndroidPath
-      val musicDirectory: AndroidDirectory =
+      val musicDirectoryPath: AbsolutePath = Configuration.deviceMusicDirectory.toUnixPath
+      val musicDirectory: AndroidFileData =
         commandLine
           .stat(musicDirectoryPath)
           .getOrElse(throw new IllegalArgumentException(s"Music directory not found: $musicDirectoryPath"))
-          .to[AndroidDirectory]
-          .getOrElse(throw new IllegalArgumentException(s"Music file is not a directory: $musicDirectoryPath"))
 
-      val artistFolders: List[RecordCandidate[AndroidPath]] =
+      val artistFolders: List[RecordCandidate] =
         commandLine
           .list(musicDirectoryPath)
-          .flatMap(_.to[AndroidDirectory])
+          .flatMap(_.to[AndroidDirectoryData])
           .map(dir => {
-            val fileCount: Int = commandLine.findRegularFiles(dir.path).count(VirtualPath.mp3Filter)
-            val lastModify: Instant = commandLine.mostRecentUpdate(dir.path).getOrElse(dir.modifyTime)
-            RecordCandidate(dir.path, fileCount, lastModify)
+            val fileCount: Int = commandLine.findRegularFiles(dir.location.path).count(FilePath.mp3Filter)
+            val lastModify: Instant = commandLine.mostRecentUpdate(dir.location.path).getOrElse(dir.modifyTime)
+            RecordCandidate(dir.location.path, fileCount, lastModify)
           })
           .toList
 
       logger.info(s"Writing record index for directory $musicDirectory with ${artistFolders.length} entries.")
-      val indexRecord: DeviceIndexRecord = IndexRecord.create(musicDirectory.path, artistFolders)
+      val indexRecord: IndexRecord = IndexRecord.create(musicDirectory.location.path, artistFolders)
       logger.info(s"New index record is: $indexRecord")
       indexRecord
     }
 
-  def scanDevice(device: Device): DeviceIndexRecord = {
-    val record: DeviceIndexRecord =
+  def scanDevice(device: Device): IndexRecord = {
+    val record: IndexRecord =
       DeviceIndexRecordService
         .getRecord(indexName(device))
         .getOrElse(throw new IllegalArgumentException(s"No index record exists for device (${device.serial})"))
 
     device.withCommandLine() { commandLine =>
-      val musicDirectoryPath: AndroidPath = Configuration.deviceMusicDirectory.toAndroidPath
-      val musicDirectory: AndroidDirectory =
+//      val musicDirectoryPath: AndroidPath = Configuration.deviceMusicDirectory.toAndroidPath
+      val musicDirectoryPath = Configuration.deviceMusicDirectory.toUnixPath
+      val musicDirectory: AndroidDirectoryData =
         commandLine
           .stat(musicDirectoryPath)
           .getOrElse(throw new IllegalArgumentException(s"Music directory not found: $musicDirectoryPath"))
-          .to[AndroidDirectory]
+          .to[AndroidDirectoryData]
           .getOrElse(throw new IllegalArgumentException(s"Music file is not a directory: $musicDirectoryPath"))
 
-      val artistFolders: List[RecordCandidate[AndroidPath]] =
+      val artistFolders: List[RecordCandidate] =
         commandLine
-          .list(musicDirectory.path)
-          .flatMap(_.to[AndroidDirectory])
+          .list(musicDirectory.location.path)
+          .flatMap(_.to[AndroidDirectoryData])
           .map(dir => {
-            val fileCount: Int = commandLine.findRegularFiles(dir.path).count(VirtualPath.mp3Filter)
-            val lastModify: Instant = commandLine.mostRecentUpdate(dir.path).getOrElse(dir.modifyTime)
-            RecordCandidate(dir.path, fileCount, lastModify)
+            val fileCount: Int = commandLine.findRegularFiles(dir.location.path).count(FilePath.mp3Filter)
+            val lastModify: Instant = commandLine.mostRecentUpdate(dir.location.path).getOrElse(dir.modifyTime)
+            RecordCandidate(dir.location.path, fileCount, lastModify)
           })
           .toList
 
@@ -93,7 +91,7 @@ object DeviceLibraryService {
     }
   }
 
-  def getRecordsToSynchronize(device: Device): Option[List[LastIndexedRecord[AndroidPath]]] =
+  def getRecordsToSynchronize(device: Device): Option[List[LastIndexedRecord]] =
     DeviceIndexRecordService.getRecord(indexName(device)).map(record => record.needsUpdating)
 
   def scheduleSynchronization(device: Device, desiredFileCount: Int): Option[DeviceSchedule] =
@@ -106,7 +104,7 @@ object DeviceLibraryService {
     }
 
   def synchronizeElasticsearchIndex(device: Device, schedule: DeviceSchedule): Unit = {
-    val indexRecord: IndexRecord[AndroidPath] =
+    val indexRecord: IndexRecord =
       DeviceIndexRecordService
         .getRecord(indexName(device))
         .getOrElse(throw new IllegalStateException(s"No index record for repository: ${device.serial}"))
@@ -120,14 +118,14 @@ object DeviceLibraryService {
 //        .flatMap(entry => Seq(s"Record: ${entry.record}") ++ entry.filePaths.map(_.path.raw))
 //        .mkString("\n")}")
 //
-//      val index: DeviceIndexRecord =
+//      val index: IndexRecord =
 //        DeviceIndexRecordService
 //          .getRecord(indexName(device))
 //          .getOrElse(throw new IllegalStateException(s"Somehow index was deleted for ${device.serial}"))
 //
 //      val progressReport: ScheduleProgressReport[AndroidPath] = ScheduleProgressReport.start(schedule)
 //      val now: Instant = Instant.now
-//      val finalIndex: DeviceIndexRecord =
+//      val finalIndex: IndexRecord =
 //        schedule.queued.reverse.foldRight(index)({
 //          case (ScheduleEntry(record, files), currentIndex) =>
 //            logger.info(s"Tagging ${files.size} files for record $record")
@@ -147,7 +145,7 @@ object DeviceLibraryService {
 //            IndexService.putAll(indexName(device), trackRecords, forceOverwrite = true)
 //
 //            val updatedRecord: LastIndexedRecord[AndroidPath] = record.updateLastIndexed(now)
-//            val updatedIndex: DeviceIndexRecord = currentIndex.updateRecord(updatedRecord)
+//            val updatedIndex: IndexRecord = currentIndex.updateRecord(updatedRecord)
 //            DeviceIndexRecordService.writeRecord(indexName(device), updatedIndex)
 //            updatedIndex
 //        })

@@ -1,13 +1,13 @@
 package com.hydrangea.music.library.record
 
-import com.hydrangea.android.file.{VirtualPath, VirtualRegularFile}
+import com.hydrangea.file.{AbsolutePath, RegularFileData}
 import org.apache.commons.lang3.time.DurationFormatUtils
 import org.slf4j.Logger
 
 import scala.annotation.tailrec
 import scala.collection.mutable
 
-abstract class Scheduler[P <: VirtualPath, F <: VirtualRegularFile] {
+abstract class Scheduler[F <: RegularFileData] {
   private val logger: Logger = org.slf4j.LoggerFactory.getLogger(getClass)
 
   /**
@@ -16,7 +16,7 @@ abstract class Scheduler[P <: VirtualPath, F <: VirtualRegularFile] {
     * @param path the path potentially containing MP3 files
     * @return the found files
     */
-  def scan(path: P): Seq[F]
+  def scan(path: AbsolutePath): Seq[F]
 
   /**
     * Creates a schedule for the next batch of records to index.  This grabs the next available records from the given
@@ -29,21 +29,21 @@ abstract class Scheduler[P <: VirtualPath, F <: VirtualRegularFile] {
     * @param indexRecord the index to process
     * @return a [[Schedule]] of the next records to process
     */
-  def schedule(fileCount: Int, indexRecord: IndexRecord[P]): Schedule[P, F] = {
+  def schedule(fileCount: Int, indexRecord: IndexRecord): Schedule[F] = {
     val marginOfError = Math.max(5, fileCount / 10)
-    take(marginOfError)(fileCount, Schedule.empty[P, F], indexRecord.needsUpdating)
+    take(marginOfError)(fileCount, Schedule.empty[F], indexRecord.needsUpdating)
   }
 
   @tailrec
   private def take(marginOfError: Int)(remainingFileCount: Int,
-                                       schedule: Schedule[P, F],
-                                       remainingRecords: List[LastIndexedRecord[P]]): Schedule[P, F] = {
+                                       schedule: Schedule[F],
+                                       remainingRecords: List[LastIndexedRecord]): Schedule[F] = {
     val noFilesLeft: Boolean = remainingFileCount - marginOfError <= 0
     val nothingLeftToIndex: Boolean = remainingRecords.isEmpty
     if (noFilesLeft || nothingLeftToIndex) {
       schedule.remaining(remainingRecords)
     } else {
-      val next: LastIndexedRecord[P] = remainingRecords.head
+      val next: LastIndexedRecord = remainingRecords.head
 
       val mp3Files: Seq[F] = scan(next.directoryPath)
 
@@ -68,35 +68,35 @@ abstract class Scheduler[P <: VirtualPath, F <: VirtualRegularFile] {
   }
 }
 
-case class ScheduleEntry[P <: VirtualPath, F <: VirtualRegularFile](record: LastIndexedRecord[P], filePaths: List[F])
+case class ScheduleEntry[F <: RegularFileData](record: LastIndexedRecord, filePaths: List[F])
 
-case class Schedule[P <: VirtualPath, F <: VirtualRegularFile](queued: List[ScheduleEntry[P, F]],
-                                                               skipped: List[LastIndexedRecord[P]],
-                                                               remaining: List[LastIndexedRecord[P]]) {
+case class Schedule[F <: RegularFileData](queued: List[ScheduleEntry[F]],
+                                          skipped: List[LastIndexedRecord],
+                                          remaining: List[LastIndexedRecord]) {
   def isEmpty: Boolean = queued.isEmpty && skipped.isEmpty && remaining.isEmpty
 
-  def queue(record: LastIndexedRecord[P], files: List[F]): Schedule[P, F] =
+  def queue(record: LastIndexedRecord, files: List[F]): Schedule[F] =
     copy(queued = queued :+ ScheduleEntry(record, files))
 
-  def skip(record: LastIndexedRecord[P]): Schedule[P, F] = copy(skipped = skipped :+ record)
+  def skip(record: LastIndexedRecord): Schedule[F] = copy(skipped = skipped :+ record)
 
-  def remaining(records: List[LastIndexedRecord[P]]): Schedule[P, F] = copy(remaining = remaining ++ records)
+  def remaining(records: List[LastIndexedRecord]): Schedule[F] = copy(remaining = remaining ++ records)
 }
 
 object Schedule {
-  def empty[P <: VirtualPath, F <: VirtualRegularFile] = Schedule[P, F](Nil, Nil, Nil)
+  def empty[F <: RegularFileData] = Schedule[F](Nil, Nil, Nil)
 }
 
-private[library] class ScheduleProgressReport[P <: VirtualPath](recordFileCounts: Map[P, Int],
-                                                                complete: mutable.Map[P, Int] =
-                                                                  mutable.Map.empty[P, Int]) {
+private[library] class ScheduleProgressReport(recordFileCounts: Map[AbsolutePath, Int],
+                                              complete: mutable.Map[AbsolutePath, Int] =
+                                                mutable.Map.empty[AbsolutePath, Int]) {
   val totalFiles = recordFileCounts.values.sum
   val start = System.currentTimeMillis()
 
-  def completeFile(forRecord: LastIndexedRecord[P]): Unit =
+  def completeFile(forRecord: LastIndexedRecord): Unit =
     complete.put(forRecord.directoryPath, complete.getOrElse(forRecord.directoryPath, 0) + 1)
 
-  def recordStatus(forRecord: LastIndexedRecord[P]): String =
+  def recordStatus(forRecord: LastIndexedRecord): String =
     format(complete.getOrElse(forRecord.directoryPath, 0), recordFileCounts(forRecord.directoryPath))
 
   def overallComplete: Int = complete.values.sum
@@ -131,14 +131,14 @@ private[library] class ScheduleProgressReport[P <: VirtualPath](recordFileCounts
 }
 
 private[library] object ScheduleProgressReport {
-  def start[P <: VirtualPath, F <: VirtualRegularFile](schedule: Schedule[P, F]): ScheduleProgressReport[P] = {
-    val totals: Map[P, Int] =
+  def start[F <: RegularFileData](schedule: Schedule[F]): ScheduleProgressReport = {
+    val totals: Map[AbsolutePath, Int] =
       schedule.queued
         .map({
           case ScheduleEntry(record, files) => record.directoryPath -> files.size
         })
         .toMap
 
-    new ScheduleProgressReport[P](totals)
+    new ScheduleProgressReport(totals)
   }
 }

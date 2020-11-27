@@ -6,10 +6,16 @@ import java.nio.file.attribute.BasicFileAttributes
 import com.hydrangea.android.adb.{ADB, Device}
 import com.hydrangea.android.file.VirtualPath._
 import com.hydrangea.android.file._
+import com.hydrangea.file.{AbsolutePath, AndroidRegularFileData, FileData}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.tagger.TikaTagger
+import com.hydrangea.music.track.Tag
 
+// TODO
 object TestApp {
+
+//  import com.hydrangea.file.FilePath._
+
   val adbDirectory: WindowsDirectory = {
     val path: Path = Paths.get("D:\\adb")
     Files.createDirectories(path)
@@ -64,16 +70,16 @@ object TestApp {
       //      println(s"OUTPUT: ${output.mkString("\n")}")
 
       println(s"Extracting MP3 tags.")
-      val mp3Files: Seq[AndroidRegularFile] =
+      val mp3Files: Seq[AndroidRegularFileData] =
         commandLine
-          .listRecursive(merDeNoms)
+          .listRecursive(AbsolutePath.unixFile(merDeNoms.raw))
           .collect({
-            case f: AndroidRegularFile => f
+            case f: AndroidRegularFileData => f
           })
-          .filter(VirtualFile.mp3Filter)
+          .filter(FileData.mp3Filter)
 
-      val records: Seq[TrackRecord] = mp3Files.map(TikaTagger.tag(commandLine, _))
-      println(s"Extracted Records:\n${records.mkString("\n")}")
+      val tags: Seq[Tag] = mp3Files.map(file => TikaTagger.tag(file.location))
+      println(s"Extracted Tags:\n${tags.mkString("\n")}")
 
       //      val depthCharge: AndroidRegularFile =
       //        commandLine.stat("/storage/0123-4567/Test/DepthCharge.mp3".toAndroidPath).get.to[AndroidRegularFile].get

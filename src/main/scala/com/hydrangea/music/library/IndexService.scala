@@ -3,6 +3,7 @@ package com.hydrangea.music.library
 import java.time.{Instant, ZonedDateTime}
 
 import com.hydrangea.android.file.{AndroidPath, VirtualPath}
+import com.hydrangea.file.AbsolutePath
 import com.hydrangea.music.library.device._
 import com.hydrangea.music.track.Tag
 import com.sksamuel.elastic4s.analysis.{Analysis, _}
@@ -200,10 +201,10 @@ object IndexService {
       recordsToWrite
     }
 
-  def remove(indexName: IndexName, path: VirtualPath): Unit =
+  def remove(indexName: IndexName, path: AbsolutePath): Unit =
     remove(indexName, Seq(path))
 
-  def remove(indexName: IndexName, paths: Seq[VirtualPath]): Unit =
+  def remove(indexName: IndexName, paths: Seq[AbsolutePath]): Unit =
     withClient { client =>
       paths.foreach(path => {
         logger.info(s"Deleting $path from index ${indexName.value}.")

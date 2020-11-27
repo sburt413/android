@@ -58,7 +58,7 @@ object TikaTagger {
   // TODO
   def tag(commandLine: ADBCommandLine, file: AndroidFile): TrackRecord = {
     logger.trace(s"Extracting record for filepath ($file.path).")
-    val hash: String = commandLine.sha1sum(file.path)
+    val hash: String = commandLine.sha1sum(file.path.raw.toAbsolutePath)
     val location: AndroidLocation = AndroidLocation(commandLine.device, file.path.raw.toUnixPath)
     TrackRecord(hash, file, tag(location))
   }

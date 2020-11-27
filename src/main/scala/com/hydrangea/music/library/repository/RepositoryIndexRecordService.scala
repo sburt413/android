@@ -1,8 +1,7 @@
 package com.hydrangea.music.library.repository
 
-import com.hydrangea.android.file.WindowsPath
-import com.hydrangea.music.library.record.{IndexRecord, IndexRecordService}
+import com.hydrangea.music.library.record.IndexRecordService
 
-object RepositoryIndexRecordService extends IndexRecordService[WindowsPath, IndexRecord[WindowsPath]] {
+object RepositoryIndexRecordService extends IndexRecordService {
   override protected def fileTag: String = "repository"
 }

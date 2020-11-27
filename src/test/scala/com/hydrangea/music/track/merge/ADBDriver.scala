@@ -3,10 +3,9 @@ package com.hydrangea.music.track.merge
 import java.io.InputStream
 
 import com.hydrangea.android.adb.{ADB, ADBCommandLine, Device}
-import com.hydrangea.android.file.{AndroidPath, AndroidRegularFile}
 import com.hydrangea.file.{AbsolutePath, AndroidLocation, FileSystemService}
-import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.tagger.TikaTagger
+import com.hydrangea.music.track.Tag
 import org.apache.commons.io.IOUtils
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -14,19 +13,15 @@ class ADBDriver extends AnyFlatSpec {
   import com.hydrangea.file.FilePath._
 
   "Driver" should "run" in {
-    val filePath: AndroidPath =
-      AndroidPath("/storage/0123-4567/Music/Whitesnake/The Best Of Whitesnake/02 - Still Of The Night.mp3")
+    val filePath: AbsolutePath =
+      "/storage/0123-4567/Music/Whitesnake/The Best Of Whitesnake/02 - Still Of The Night.mp3".toAbsolutePath
 
     val device: Device = ADB.firstDevice
     val commandline: ADBCommandLine = device.commandline()
-    val file: AndroidRegularFile =
-      commandline
-        .stat(filePath)
-        .flatMap(_.to[AndroidRegularFile])
-        .getOrElse(throw new IllegalStateException("No file!"))
 
-    val record: TrackRecord = TikaTagger.tag(commandline, file)
-    println(s"Parsed record: $record")
+    val location: AndroidLocation = AndroidLocation(device, filePath)
+    val tag: Tag = TikaTagger.tag(location)
+    println(s"Parsed tag: $tag")
 
     val srcPath: AbsolutePath = filePath.raw.toUnixPath
     val start: Long = System.currentTimeMillis()
