@@ -12,8 +12,9 @@ object ScanRepository extends App {
 
   val directory =
     Configuration.repositoryDirectory.toLocalDirectoryData
-//      .getOrElse(throw new IllegalStateException(
-//        s"Repository directory (${Configuration.repositoryDirectory}) is not a Windows directory."))
+      .getOrElse(
+        throw new IllegalStateException(
+          s"Repository directory (${Configuration.repositoryDirectory}) is not a Windows directory."))
   val repository: Repository = Repository(directory)
 
   RepositoryLibraryService.scanRepository(repository)

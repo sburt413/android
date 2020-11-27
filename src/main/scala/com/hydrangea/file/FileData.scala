@@ -19,27 +19,25 @@ object FileData {
   val mp3Filter: FileData => Boolean = extensionFilter(".mp3")
 
   implicit class PathOps(javaPath: Path) {
-    def toLocalRegularFileData: LocalRegularFileData = {
+    def toLocalRegularFileData: Option[LocalRegularFileData] = {
       val (path, modifiedTime) = getData(javaPath)
       if (Files.isRegularFile(javaPath)) {
-        LocalRegularFileData(LocalFileLocation(path), modifiedTime)
+        Some(LocalRegularFileData(LocalFileLocation(path), modifiedTime))
       } else {
-        // TODO: Is optional
-        throw new IllegalArgumentException("Not a regular file")
+        None
       }
     }
 
-    def toLocalDirectoryData: LocalDirectoryData = {
+    def toLocalDirectoryData: Option[LocalDirectoryData] = {
       val (path, modifiedTime) = getData(javaPath)
       if (Files.isDirectory(javaPath)) {
-        LocalDirectoryData(LocalFileLocation(path), modifiedTime)
+        Some(LocalDirectoryData(LocalFileLocation(path), modifiedTime))
       } else {
-        // TODO: Is optional
-        throw new IllegalArgumentException("Not a directory")
+        None
       }
     }
 
-    def toLocalFileData: LocalFileData =
+    def toLocalFileData: Option[LocalFileData] =
       if (Files.isDirectory(javaPath)) {
         javaPath.toLocalDirectoryData
       } else {

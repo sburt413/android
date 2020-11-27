@@ -16,7 +16,7 @@ object RepositoryService {
       Files
         .walk(path.toJavaPath)
         .toScala(LazyList)
-        .map(_.toLocalRegularFileData)
+        .flatMap(_.toLocalRegularFileData)
         .filter(FileData.mp3Filter)
         .map(TrackService.getLocalTrack)
         .map(TrackRecord(_, Instant.now()))

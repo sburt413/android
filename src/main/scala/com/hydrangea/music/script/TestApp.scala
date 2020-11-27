@@ -6,7 +6,7 @@ import java.time.Instant
 
 import com.hydrangea.android.adb.{ADB, Device}
 import com.hydrangea.file.FileData._
-import com.hydrangea.file.{AbsolutePath, AndroidRegularFileData, FileData}
+import com.hydrangea.file.{AbsolutePath, AndroidRegularFileData, FileData, LocalRegularFileData}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.tagger.TikaTagger
 import com.hydrangea.music.track.{Tag, Track, TrackService}
@@ -42,7 +42,9 @@ object TestApp {
         override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
           println(s"Visiting: $file")
           if (file.getFileName.toString.endsWith(".mp3")) {
-            val track: Track = TrackService.getLocalTrack(file.toLocalRegularFileData)
+            val fileData: LocalRegularFileData =
+              file.toLocalRegularFileData.getOrElse(throw new IllegalArgumentException("Not a regular file"))
+            val track: Track = TrackService.getLocalTrack(fileData)
             val record: TrackRecord = TrackRecord(track, Instant.now())
             println(s"Record for path ($file): $record")
           }

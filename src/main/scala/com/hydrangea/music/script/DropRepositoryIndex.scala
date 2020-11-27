@@ -10,9 +10,10 @@ import org.apache.commons.lang3.RandomStringUtils
 object DropRepositoryIndex extends App {
   import com.hydrangea.file.FileData._
 
-  val directory = Configuration.repositoryDirectory.toLocalDirectoryData
-//      .getOrElse(throw new IllegalStateException(
-//        s"Repository directory (${Configuration.repositoryDirectory}) is not a Windows directory."))
+  val directory =
+    Configuration.repositoryDirectory.toLocalDirectoryData.getOrElse(
+      throw new IllegalStateException(
+        s"Repository directory (${Configuration.repositoryDirectory}) is not a Windows directory."))
   val repository: Repository = Repository(directory)
 
   private val nonce: String = RandomStringUtils.randomAlphabetic(4)

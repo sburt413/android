@@ -16,7 +16,7 @@ class RepositoryScheduler(repository: Repository) extends Scheduler[LocalRegular
       .walk(path.toJavaPath)
       .toScala(LazyList)
       .filter(path => path.toString.endsWith(FilePath.mp3Extension))
-      .map(_.toLocalRegularFileData)
+      .flatMap(_.toLocalRegularFileData)
 }
 
 object RepositoryScheduler {

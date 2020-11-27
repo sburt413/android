@@ -17,9 +17,11 @@ object TagAndIndexRepository extends App {
   val cliArgs = new Args(args)
   cliArgs.verify()
 
-  val directory = Configuration.repositoryDirectory.toLocalDirectoryData
-//      .getOrElse(throw new IllegalStateException(
-//        s"Repository directory (${Configuration.repositoryDirectory}) is not a Windows directory."))
+  val directory =
+    Configuration.repositoryDirectory.toLocalDirectoryData
+      .getOrElse(
+        throw new IllegalStateException(
+          s"Repository directory (${Configuration.repositoryDirectory}) is not a Windows directory."))
   val repository: Repository = Repository(directory)
 
   val fileCount: Int =
