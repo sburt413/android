@@ -77,6 +77,19 @@ object UnixPathBase extends PathBase {
 object AbsolutePath {
   import FilePath._
 
+  // TODO: These are all actually optionals
+  def apply(str: String): AbsolutePath =
+    if (str.charAt(0) == '/') {
+      str.toUnixPath
+    } else if (str.charAt(0) == '\\') {
+      str.toWindowsNetworkPath
+    } else if (Character.isLetter(str.charAt(0))) {
+      str.toLocalWindowsPath
+    } else {
+      // TODO: Is actually optional
+      throw new IllegalArgumentException("Is not an AbsolutePath")
+    }
+
   def localWindowsFile(driveLetter: Char, segments: List[String]): AbsolutePath =
     AbsolutePath(LocalWindowsPathBase(driveLetter), segments)
 
@@ -123,7 +136,6 @@ object AbsolutePath {
 }
 
 object PathBase {
-
   implicit def encode: EncodeJson[PathBase] =
     base => Json("root" := base.root)
 
@@ -192,17 +204,7 @@ object FilePath {
 
     def toUnixPath: AbsolutePath = AbsolutePath.unixFile(str)
 
-    def toAbsolutePath: AbsolutePath =
-      if (str.charAt(0) == '/') {
-        str.toUnixPath
-      } else if (str.charAt(0) == '\\') {
-        str.toWindowsNetworkPath
-      } else if (Character.isLetter(str.charAt(0))) {
-        str.toLocalWindowsPath
-      } else {
-        // TODO: Is actually optional
-        throw new IllegalArgumentException("Is not an AbsolutePath")
-      }
+    def toAbsolutePath: AbsolutePath = AbsolutePath(str)
 
     def toRelativePath: RelativePath = {
       val separator =

@@ -3,7 +3,7 @@ package com.hydrangea.music.track.merge
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-import com.hydrangea.android.file.AndroidPath
+import com.hydrangea.file.AbsolutePath
 import com.hydrangea.music.track.{Tag, Track}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
@@ -168,7 +168,7 @@ class TrackMergeTest extends AnyFlatSpec {
   }
 
   it should "use a track duplicate strategy" in {
-    val duplicateAliceTrack: Track = aliceTrack.copy(path = AndroidPath("/alice2"))
+    val duplicateAliceTrack: Track = aliceTrack.copy(path = AbsolutePath("/alice2"))
     val duplicate = DuplicateTrack(aliceTrack, duplicateAliceTrack)
 
     val ignoreDuplicate =
@@ -211,7 +211,7 @@ class TrackMergeTest extends AnyFlatSpec {
     val alternateAliceTrack: Track = aliceTrack.copy(hash = "aaaa", tag = aliceTag.copy(title = "Alice Track 2"))
     val aliceConflict = TrackConflict(aliceTrack, alternateAliceTrack)
 
-    val duplicateBobTrack: Track = bobTrack.copy(path = AndroidPath("/bob2"))
+    val duplicateBobTrack: Track = bobTrack.copy(path = AbsolutePath("/bob2"))
     val bobDuplicate = DuplicateTrack(aliceTrack, duplicateBobTrack)
 
     val eveAdded = TrackAdded(eveTrack)
@@ -248,17 +248,17 @@ object TrackMergeTest {
   private val tomorrow: Instant = now.plus(1, ChronoUnit.DAYS)
 
   val aliceTag = Tag("Alice Title", "Alice Track", "Alice", Some(2000), Some(1), Some(10), Some(1), Some(2))
-  val aliceTrack = Track("1111", AndroidPath("/alice"), now, aliceTag)
+  val aliceTrack = Track("1111", AbsolutePath("/alice"), now, aliceTag)
 
   val bobTag = Tag("Bob Title", "Bob Track", "Bob", Some(2001), Some(2), Some(20), Some(2), Some(2))
-  val bobTrack = Track("2222", AndroidPath("/bob"), yesterday, bobTag)
+  val bobTrack = Track("2222", AbsolutePath("/bob"), yesterday, bobTag)
 
   val charlieTag = Tag("Charlie Title", "Charlie Track", "Charlie", Some(2002), Some(3), Some(10), Some(1), Some(1))
-  val charlieTrack = Track("3333", AndroidPath("/charlie"), tomorrow, charlieTag)
+  val charlieTrack = Track("3333", AbsolutePath("/charlie"), tomorrow, charlieTag)
 
   val dannyTag = Tag("Danny Title", "Danny Track", "Danny", Some(2003), Some(4), Some(10), Some(1), Some(1))
-  val dannyTrack = Track("4444", AndroidPath("/danny"), now, dannyTag)
+  val dannyTrack = Track("4444", AbsolutePath("/danny"), now, dannyTag)
 
   val eveTag = Tag("Eve Title", "Eve Track", "Eve", Some(2004), Some(5), Some(12), Some(1), Some(1))
-  val eveTrack = Track("5555", AndroidPath("/eve"), now, eveTag)
+  val eveTrack = Track("5555", AbsolutePath("/eve"), now, eveTag)
 }

@@ -3,9 +3,8 @@ package com.hydrangea.music.library
 import java.nio.file.{Files, Path}
 import java.time.Instant
 
-import com.hydrangea.android.file.VirtualPath
 import com.hydrangea.file.FilePath._
-import com.hydrangea.file.{AbsolutePath, LocalRegularFileData}
+import com.hydrangea.file.{AbsolutePath, FilePath, LocalRegularFileData}
 import com.hydrangea.music.library.record.{IndexRecord, LastIndexedRecord, RecordCandidate, Schedule}
 import com.hydrangea.music.library.repository.{
   Repository,
@@ -60,7 +59,7 @@ object RepositoryLibraryService {
       Files
         .walk(artistFolder)
         .toScala(LazyList)
-        .filter(path => path.toString.toLowerCase.endsWith(VirtualPath.mp3Extension))
+        .filter(path => path.toString.toLowerCase.endsWith(FilePath.mp3Extension))
         .map(path => Files.getLastModifiedTime(path).toInstant)
 
     val windowsPath: AbsolutePath = artistFolder.toAbsolutePath.toString.toAbsolutePath

@@ -6,8 +6,6 @@ import java.util.concurrent.TimeUnit
 
 import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForDirectories, ForRegularFiles}
 import com.hydrangea.android.adb.ls.LsParser
-import com.hydrangea.android.file.VirtualPath._
-import com.hydrangea.android.file._
 import com.hydrangea.file.FilePath._
 import com.hydrangea.file.{AbsolutePath, AndroidDirectoryData, AndroidFileData, AndroidLocation, AndroidRegularFileData}
 import com.hydrangea.process.{CLIProcess, Timeout}
@@ -38,7 +36,7 @@ case class Device(serial: String) {
     * @tparam A the type of output from the function
     * @return the result of running the function
     */
-  def withCommandLine[A](timeout: Timeout = Device.defaultTimeout, charset: Charset = ADBCommandLine.UTF_16)(
+  def withCommandLine[A](timeout: Timeout = Device.defaultTimeout, charset: Charset = Charset.defaultCharset())(
       fn: ADBCommandLine => A): A =
     fn(new ADBCommandLine(this, timeout, charset))
 }

@@ -3,8 +3,7 @@ package com.hydrangea.music.library.device
 import java.time.Instant
 
 import com.hydrangea.android.adb.Device
-import com.hydrangea.android.file.AndroidPath
-import com.hydrangea.file.AndroidRegularFileData
+import com.hydrangea.file.{AbsolutePath, AndroidRegularFileData}
 import com.hydrangea.music.library.record.{IndexRecord, LastIndexedRecord, Schedule, SynchronizationJob}
 import com.hydrangea.music.library.{IndexName, TrackRecord}
 import com.hydrangea.music.tagger.TikaTagger
@@ -17,8 +16,7 @@ class DeviceSynchronizationJob(device: Device, indexName: IndexName)
       val hash: String = commandLine.sha1sum(file.location.path)
       val trackTag: Tag = TikaTagger.tag(file.location)
 
-      // TODO: Uses old path
-      val path: AndroidPath = AndroidPath(file.location.path.raw)
+      val path = AbsolutePath(file.location.path.raw)
       val track: Track = Track(hash, path, file.modifyTime, trackTag)
       TrackRecord(track, Instant.now())
     }

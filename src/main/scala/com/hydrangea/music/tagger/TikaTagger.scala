@@ -3,13 +3,9 @@ package com.hydrangea.music.tagger
 import java.io.InputStream
 import java.nio.file.{Files, Path}
 
-import com.hydrangea.android.adb.ADBCommandLine
-import com.hydrangea.android.file.{AndroidFile, VirtualFile, WindowsFile, WindowsPath}
 import com.hydrangea.file.{AndroidLocation, FileLocation, FileSystemService, LocalFileLocation}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.track.Tag
-import org.apache.commons.codec.digest.DigestUtils
-import org.apache.commons.codec.digest.MessageDigestAlgorithms.SHA_1
 import org.apache.tika.metadata.Metadata
 import org.apache.tika.parser.ParseContext
 import org.apache.tika.parser.mp3.Mp3Parser
@@ -17,7 +13,6 @@ import org.slf4j.Logger
 import org.xml.sax.helpers.DefaultHandler
 
 object TikaTagger {
-  import com.hydrangea.file.FilePath._
 
   private val logger: Logger = org.slf4j.LoggerFactory.getLogger(TikaTagger.getClass)
 
@@ -55,25 +50,6 @@ object TikaTagger {
     parsedTag
   }
 
-  // TODO
-  def tag(commandLine: ADBCommandLine, file: AndroidFile): TrackRecord = {
-    logger.trace(s"Extracting record for filepath ($file.path).")
-    val hash: String = commandLine.sha1sum(file.path.raw.toAbsolutePath)
-    val location: AndroidLocation = AndroidLocation(commandLine.device, file.path.raw.toUnixPath)
-    TrackRecord(hash, file, tag(location))
-  }
-
-  def tag(path: WindowsPath): TrackRecord = {
-    logger.info(s"Parsing: ${path.raw}")
-
-    val sha1 = new DigestUtils(SHA_1)
-    val hash: String = sha1.digestAsHex(path.toJavaFile)
-    val parsedTag: Tag = tag(path.toJavaPath)
-    val record: TrackRecord = TrackRecord(hash, WindowsFile.of(path.toJavaPath), parsedTag)
-    logger.info(s"Record is: $record")
-    record
-  }
-
   private def tag(javaPath: Path): Tag = {
     val handler = new DefaultHandler
     val context = new ParseContext
@@ -83,10 +59,6 @@ object TikaTagger {
     parser.parse(Files.newInputStream(javaPath), handler, metadata, context)
     fromMetadata(metadata)
   }
-
-  // TODO: Record can be composed at different level
-  private def fromMetadata(hash: String, file: VirtualFile, metadata: Metadata): TrackRecord =
-    TrackRecord(hash, file, fromMetadata(metadata))
 
   private def fromMetadata(metadata: Metadata): Tag = {
     val title: String =

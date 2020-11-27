@@ -1,22 +1,25 @@
 package com.hydrangea.music.library.repository
 
 import java.nio.file.Files
+import java.time.Instant
 
-import com.hydrangea.android.file.{VirtualPath, WindowsPath}
+import com.hydrangea.file.FileData._
+import com.hydrangea.file.{AbsolutePath, FileData}
 import com.hydrangea.music.library.TrackRecord
-import com.hydrangea.music.tagger.TikaTagger
+import com.hydrangea.music.track.TrackService
 
 import scala.jdk.StreamConverters._
 
 object RepositoryService {
-  def readRepository(path: WindowsPath): List[TrackRecord] = {
+  def readRepository(path: AbsolutePath): List[TrackRecord] = {
     val tags: List[TrackRecord] =
       Files
         .walk(path.toJavaPath)
         .toScala(LazyList)
-        .map(javaPath => WindowsPath(javaPath.toAbsolutePath.toString))
-        .filter(VirtualPath.mp3Filter)
-        .map(TikaTagger.tag)
+        .map(_.toLocalRegularFileData)
+        .filter(FileData.mp3Filter)
+        .map(TrackService.getLocalTrack)
+        .map(TrackRecord(_, Instant.now()))
         .toList
 
     tags.foreach(tag => println(s"Tag is: $tag"))

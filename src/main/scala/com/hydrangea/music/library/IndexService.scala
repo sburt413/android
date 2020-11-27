@@ -2,8 +2,7 @@ package com.hydrangea.music.library
 
 import java.time.{Instant, ZonedDateTime}
 
-import com.hydrangea.android.file.{AndroidPath, VirtualPath}
-import com.hydrangea.file.AbsolutePath
+import com.hydrangea.file.{AbsolutePath, FilePath}
 import com.hydrangea.music.library.device._
 import com.hydrangea.music.track.Tag
 import com.sksamuel.elastic4s.analysis.{Analysis, _}
@@ -64,9 +63,9 @@ object IndexService {
       val pathAnalyzerReversed: CustomAnalyzer =
         CustomAnalyzer(CUSTOM_PATH_TREE_REVERSED, tokenizer = CUSTOM_HIERARCHY_REVERSED)
       val customHierarchyTokenizer: PathHierarchyTokenizer =
-        PathHierarchyTokenizer(CUSTOM_HIERARCHY, delimiter = AndroidPath.pathSeparator)
+        PathHierarchyTokenizer(CUSTOM_HIERARCHY, delimiter = FilePath.UnixSeparator)
       val customHierarchyTokenizerReversed: PathHierarchyTokenizer =
-        PathHierarchyTokenizer(CUSTOM_HIERARCHY_REVERSED, delimiter = AndroidPath.pathSeparator, reverse = true)
+        PathHierarchyTokenizer(CUSTOM_HIERARCHY_REVERSED, delimiter = FilePath.UnixSeparator, reverse = true)
 
       val keywordSanitizer = CustomNormalizer.apply(SANITIZER, Nil, List("lowercase", "asciifolding"))
 
@@ -125,10 +124,10 @@ object IndexService {
 
   def putAll(indexName: IndexName, records: Seq[TrackRecord], forceOverwrite: Boolean = false): Seq[TrackRecord] =
     withClient { client =>
-      val recordByPath: Map[VirtualPath, Seq[TrackRecord]] = records.groupBy(_.path)
+      val recordByPath: Map[AbsolutePath, Seq[TrackRecord]] = records.groupBy(_.path)
 
       // Get the existing records to see if we already have as recent/more recent data
-      val existingRecordByPath: Map[VirtualPath, TrackRecord] =
+      val existingRecordByPath: Map[AbsolutePath, TrackRecord] =
         if (forceOverwrite) {
           // To overwrite, we simply will not bother to see if we have existing data.  Elastic will automatically update
           // the record in the index if there is a collision
@@ -279,7 +278,7 @@ object IndexService {
 
   private def toRecord(sourceMap: Map[String, Any]): TrackRecord = {
     val hash: String = sourceMap(HASH).toString
-    val path = AndroidPath(sourceMap(PATH).toString)
+    val path = AbsolutePath(sourceMap(PATH).toString)
     val lastModified = ZonedDateTime.parse(sourceMap(LAST_MODIFIED).toString).toInstant
     val lastIndexed = ZonedDateTime.parse(sourceMap(LAST_INDEXED).toString).toInstant
 

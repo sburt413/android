@@ -2,7 +2,7 @@ package com.hydrangea.music.library.device
 
 import java.time.Instant
 
-import com.hydrangea.android.file.VirtualPath
+import com.hydrangea.file.AbsolutePath
 
 sealed trait DeviceIndexQuery {
   def &&(rhs: DeviceIndexQuery): AllOf =
@@ -48,9 +48,9 @@ object AnyOf {
 
 sealed trait DeviceIndexQueryOperand extends DeviceIndexQuery
 
-case class SubPathQuery(path: VirtualPath, raw: Boolean = true) extends DeviceIndexQueryOperand
+case class SubPathQuery(path: AbsolutePath, raw: Boolean = true) extends DeviceIndexQueryOperand
 
-case class PathQuery(path: VirtualPath, raw: Boolean = true) extends DeviceIndexQueryOperand
+case class PathQuery(path: AbsolutePath, raw: Boolean = true) extends DeviceIndexQueryOperand
 
 case class HashQuery(hash: String) extends DeviceIndexQueryOperand
 

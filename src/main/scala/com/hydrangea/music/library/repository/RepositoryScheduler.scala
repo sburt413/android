@@ -2,8 +2,7 @@ package com.hydrangea.music.library.repository
 
 import java.nio.file.Files
 
-import com.hydrangea.android.file.VirtualPath
-import com.hydrangea.file.{AbsolutePath, LocalRegularFileData}
+import com.hydrangea.file.{AbsolutePath, FilePath, LocalRegularFileData}
 import com.hydrangea.music.library.record.Scheduler
 
 import scala.jdk.StreamConverters._
@@ -16,7 +15,7 @@ class RepositoryScheduler(repository: Repository) extends Scheduler[LocalRegular
     Files
       .walk(path.toJavaPath)
       .toScala(LazyList)
-      .filter(path => path.toString.endsWith(VirtualPath.mp3Extension))
+      .filter(path => path.toString.endsWith(FilePath.mp3Extension))
       .map(_.toLocalRegularFileData)
 }
 

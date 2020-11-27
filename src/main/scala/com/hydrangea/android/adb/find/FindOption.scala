@@ -2,7 +2,7 @@ package com.hydrangea.android.adb.find
 
 import java.time.Instant
 
-import com.hydrangea.android.file.VirtualPath
+import com.hydrangea.file.AbsolutePath
 
 sealed trait FindOption {
   def param: String
@@ -18,7 +18,7 @@ case class ByName(name: String) extends FindOption {
   val value: String = name.replace("*", "\\*")
 }
 
-case class ByPath(path: VirtualPath) extends FindOption {
+case class ByPath(path: AbsolutePath) extends FindOption {
   val param = "-path"
   val value: String = path.commandLine.replace("*", "\\*")
 }

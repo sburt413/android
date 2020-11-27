@@ -3,7 +3,7 @@ package com.hydrangea.music.track.merge
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-import com.hydrangea.android.file.AndroidPath
+import com.hydrangea.file.AbsolutePath
 import com.hydrangea.music.track.{Tag, Track, merge}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
@@ -42,10 +42,10 @@ class TrackComparisonTest extends AnyFlatSpec {
 
   "DuplicateTrack" should "determine types of duplicates" in {
     val duplicateContentTrack: Track =
-      aliceTrack.copy(path = AndroidPath("/alice2"), tag = aliceTag.copy("Alice Track 2"))
-    val duplicateTagTrack: Track = aliceTrack.copy(path = AndroidPath("/alice2"), hash = "aaaa")
+      aliceTrack.copy(path = AbsolutePath("/alice2"), tag = aliceTag.copy("Alice Track 2"))
+    val duplicateTagTrack: Track = aliceTrack.copy(path = AbsolutePath("/alice2"), hash = "aaaa")
     val unrelatedTrack: Track =
-      aliceTrack.copy(path = AndroidPath("/alice2"), hash = "aaaa", tag = aliceTag.copy("Alice Track 2"))
+      aliceTrack.copy(path = AbsolutePath("/alice2"), hash = "aaaa", tag = aliceTag.copy("Alice Track 2"))
 
     // Not a true duplicate
     DuplicateTrack(aliceTrack, aliceTrack).duplicateContent should equal(true)
@@ -87,7 +87,7 @@ class TrackComparisonTest extends AnyFlatSpec {
   it should "compare different tracks" in {
     val actual: Set[TrackComparison] = TrackComparison.compare(Set(aliceTrack, bobTrack), Set(charlieTrack, dannyTrack))
     val expected: Set[TrackComparison] =
-      Set(aliceTrack, bobTrack).map(TrackAdded) ++ Set(charlieTrack, dannyTrack).map(TrackRemoved)
+      (Set(aliceTrack, bobTrack).map(TrackAdded) ++ Set(charlieTrack, dannyTrack).map(TrackRemoved)).toSet
     actual should equal(expected)
   }
 
@@ -142,8 +142,8 @@ class TrackComparisonTest extends AnyFlatSpec {
   }
 
   it should "recognize duplicates" in {
-    val aliceTrackDuplicate: Track = aliceTrack.copy(path = AndroidPath("/alice2"))
-    val bobTrackDuplicate: Track = bobTrack.copy(path = AndroidPath("/bob2"))
+    val aliceTrackDuplicate: Track = aliceTrack.copy(path = AbsolutePath("/alice2"))
+    val bobTrackDuplicate: Track = bobTrack.copy(path = AbsolutePath("/bob2"))
 
     val actual: Set[TrackComparison] =
       TrackComparison.compare(Set(aliceTrack, bobTrack), Set(aliceTrackDuplicate, bobTrackDuplicate))
@@ -155,7 +155,7 @@ class TrackComparisonTest extends AnyFlatSpec {
 
   it should "differentiate added, matching, conflicted and duplicate tracks" in {
     val charlieTrack2: Track = charlieTrack.copy(tag = charlieTag.copy(title = "Charlie Track 2"))
-    val dannyTrackDuplicate: Track = dannyTrack.copy(path = AndroidPath("/danny2"))
+    val dannyTrackDuplicate: Track = dannyTrack.copy(path = AbsolutePath("/danny2"))
     val comparisons: Set[TrackComparison] = TrackComparison.compare(Set(aliceTrack, bobTrack, charlieTrack, dannyTrack),
                                                                     Set(bobTrack, charlieTrack2, dannyTrackDuplicate))
 
@@ -173,14 +173,14 @@ object TrackComparisonTest {
   private val tomorrow: Instant = now.plus(1, ChronoUnit.DAYS)
 
   val aliceTag = Tag("Alice Title", "Alice Track", "Alice", Some(2000), Some(1), Some(10), Some(1), Some(2))
-  val aliceTrack = Track("1111", AndroidPath("/alice"), now, aliceTag)
+  val aliceTrack = Track("1111", AbsolutePath("/alice"), now, aliceTag)
 
   val bobTag = Tag("Bob Title", "Bob Track", "Bob", Some(2001), Some(2), Some(20), Some(2), Some(2))
-  val bobTrack = Track("2222", AndroidPath("/bob"), yesterday, bobTag)
+  val bobTrack = Track("2222", AbsolutePath("/bob"), yesterday, bobTag)
 
   val charlieTag = Tag("Charlie Title", "Charlie Track", "Charlie", Some(2002), Some(3), Some(10), Some(1), Some(1))
-  val charlieTrack = Track("3333", AndroidPath("/charlie"), tomorrow, charlieTag)
+  val charlieTrack = Track("3333", AbsolutePath("/charlie"), tomorrow, charlieTag)
 
   val dannyTag = Tag("Danny Title", "Danny Track", "Danny", Some(2003), Some(4), Some(10), Some(1), Some(1))
-  val dannyTrack = Track("4444", AndroidPath("/danny"), now, dannyTag)
+  val dannyTrack = Track("4444", AbsolutePath("/danny"), now, dannyTag)
 }

@@ -2,39 +2,32 @@ package com.hydrangea.music.script
 
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
+import java.time.Instant
 
 import com.hydrangea.android.adb.{ADB, Device}
-import com.hydrangea.android.file.VirtualPath._
-import com.hydrangea.android.file._
+import com.hydrangea.file.FileData._
 import com.hydrangea.file.{AbsolutePath, AndroidRegularFileData, FileData}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.tagger.TikaTagger
-import com.hydrangea.music.track.Tag
+import com.hydrangea.music.track.{Tag, Track, TrackService}
 
 // TODO
 object TestApp {
 
 //  import com.hydrangea.file.FilePath._
 
-  val adbDirectory: WindowsDirectory = {
-    val path: Path = Paths.get("D:\\adb")
-    Files.createDirectories(path)
-    WindowsDirectory(path)
-  }
-
   private val device: Device = ADB.firstDevice
 
-  private val musicDirectoryPath: AndroidPath = "/storage/0123-4567/Music".toAndroidPath
-  private val devinTownsendDirectoryPath: AndroidPath = "/storage/0123-4567/Music/Devin Townsend".toAndroidPath
-  private val acceleratedEvolution: AndroidPath = "/storage/0123-4567/Test/Accelerated Evolution".toAndroidPath
-  private val byAThreadAddicted: AndroidPath =
-    "/storage/0123-4567/Music/Devin Townsend/By a Thread - Live in London 2011 (incl Encores) [Explicit]".toAndroidPath
-  private val aPerfectCircle: AndroidPath =
-    "/storage/0123-4567/Music/A Perfect Circle".toAndroidPath
-  private val merDeNoms: AndroidPath = aPerfectCircle :+ "Mer de Noms"
-  private val generationAxeDirectoryPath: AndroidPath = "/storage/0123-4567/Music/Generation Axe".toAndroidPath
-  private val whippingPostPath: AndroidPath =
-    "/storage/0123-4567/Music/Generation Axe/The Guitars That Destroyed The World_ Li/06 Whipping Post [Live].mp3".toAndroidPath
+  private val musicDirectoryPath = "/storage/0123-4567/Music"
+  private val devinTownsendDirectoryPath = "/storage/0123-4567/Music/Devin Townsend"
+  private val acceleratedEvolution = "/storage/0123-4567/Test/Accelerated Evolution"
+  private val byAThreadAddicted =
+    "/storage/0123-4567/Music/Devin Townsend/By a Thread - Live in London 2011 (incl Encores) [Explicit]"
+  private val aPerfectCircle = "/storage/0123-4567/Music/A Perfect Circle"
+  private val merDeNoms = aPerfectCircle + "/Mer de Noms"
+  private val generationAxeDirectoryPath = "/storage/0123-4567/Music/Generation Axe"
+  private val whippingPostPath =
+    "/storage/0123-4567/Music/Generation Axe/The Guitars That Destroyed The World_ Li/06 Whipping Post [Live].mp3"
 
   def main(args: Array[String]): Unit = {
 //    val repositoryDirectory: WindowsDirectory =
@@ -49,7 +42,8 @@ object TestApp {
         override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
           println(s"Visiting: $file")
           if (file.getFileName.toString.endsWith(".mp3")) {
-            val record: TrackRecord = TikaTagger.tag(file)
+            val track: Track = TrackService.getLocalTrack(file.toLocalRegularFileData)
+            val record: TrackRecord = TrackRecord(track, Instant.now())
             println(s"Record for path ($file): $record")
           }
 
@@ -72,7 +66,7 @@ object TestApp {
       println(s"Extracting MP3 tags.")
       val mp3Files: Seq[AndroidRegularFileData] =
         commandLine
-          .listRecursive(AbsolutePath.unixFile(merDeNoms.raw))
+          .listRecursive(AbsolutePath.unixFile(merDeNoms))
           .collect({
             case f: AndroidRegularFileData => f
           })
