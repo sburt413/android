@@ -62,7 +62,7 @@ object RepositoryLibraryService {
         .filter(path => path.toString.toLowerCase.endsWith(FilePath.mp3Extension))
         .map(path => Files.getLastModifiedTime(path).toInstant)
 
-    val windowsPath: AbsolutePath = artistFolder.toAbsolutePath.toString.toAbsolutePath
+    val windowsPath: AbsolutePath = artistFolder.asAbsolutePath
     if (lastModifiedTimes.isEmpty) {
       val directoryModifiedTime: Instant = Files.getLastModifiedTime(artistFolder).toInstant
       RecordCandidate(windowsPath, 0, directoryModifiedTime)

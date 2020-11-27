@@ -68,7 +68,7 @@ object TestApp {
       println(s"Extracting MP3 tags.")
       val mp3Files: Seq[AndroidRegularFileData] =
         commandLine
-          .listRecursive(AbsolutePath.unixFile(merDeNoms))
+          .listRecursive(AbsolutePath.unixPath(merDeNoms))
           .collect({
             case f: AndroidRegularFileData => f
           })

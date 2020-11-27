@@ -14,7 +14,8 @@ class ADBDriver extends AnyFlatSpec {
 
   "Driver" should "run" in {
     val filePath: AbsolutePath =
-      "/storage/0123-4567/Music/Whitesnake/The Best Of Whitesnake/02 - Still Of The Night.mp3".toAbsolutePath
+      "/storage/0123-4567/Music/Whitesnake/The Best Of Whitesnake/02 - Still Of The Night.mp3".toAbsolutePath.getOrElse(
+        throw new IllegalStateException("Illegal Path"))
 
     val device: Device = ADB.firstDevice
     val commandline: ADBCommandLine = device.commandline()

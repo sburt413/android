@@ -278,7 +278,8 @@ object IndexService {
 
   private def toRecord(sourceMap: Map[String, Any]): TrackRecord = {
     val hash: String = sourceMap(HASH).toString
-    val path = AbsolutePath(sourceMap(PATH).toString)
+    val pathStr: String = sourceMap(PATH).toString
+    val path = AbsolutePath(pathStr).getOrElse(throw new IllegalArgumentException(s"Could not parse path: $pathStr"))
     val lastModified = ZonedDateTime.parse(sourceMap(LAST_MODIFIED).toString).toInstant
     val lastIndexed = ZonedDateTime.parse(sourceMap(LAST_INDEXED).toString).toInstant
 

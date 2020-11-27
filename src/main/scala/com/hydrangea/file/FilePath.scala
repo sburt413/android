@@ -77,23 +77,21 @@ object UnixPathBase extends PathBase {
 object AbsolutePath {
   import FilePath._
 
-  // TODO: These are all actually optionals
-  def apply(str: String): AbsolutePath =
+  def apply(str: String): Option[AbsolutePath] =
     if (str.charAt(0) == '/') {
-      str.toUnixPath
+      Some(str.toUnixPath)
     } else if (str.charAt(0) == '\\') {
-      str.toWindowsNetworkPath
+      Some(str.toWindowsNetworkPath)
     } else if (Character.isLetter(str.charAt(0))) {
-      str.toLocalWindowsPath
+      Some(str.toLocalWindowsPath)
     } else {
-      // TODO: Is actually optional
-      throw new IllegalArgumentException("Is not an AbsolutePath")
+      None
     }
 
-  def localWindowsFile(driveLetter: Char, segments: List[String]): AbsolutePath =
+  def localWindowsPath(driveLetter: Char, segments: List[String]): AbsolutePath =
     AbsolutePath(LocalWindowsPathBase(driveLetter), segments)
 
-  def localWindowsFile(pathStr: String): AbsolutePath = {
+  def localWindowsPath(pathStr: String): AbsolutePath = {
     val splitIndex =
       if (pathStr.contains(WindowsSeparator)) {
         pathStr.indexOf(WindowsSeparator)
@@ -104,13 +102,13 @@ object AbsolutePath {
     val (driveColon, tail) = pathStr.splitAt(splitIndex)
     val driveLetter: Char = driveColon.charAt(0)
     val segments: List[String] = trim(tail, WindowsSeparator).split(WindowsSeparator).filterNot(_.isBlank).toList
-    localWindowsFile(driveLetter, segments)
+    localWindowsPath(driveLetter, segments)
   }
 
-  def windowsNetworkFile(host: String, segments: List[String]): AbsolutePath =
+  def windowsNetworkPath(host: String, segments: List[String]): AbsolutePath =
     AbsolutePath(WindowsNetworkPathBase(host), segments)
 
-  def windowsNetworkFile(pathStr: String): AbsolutePath = {
+  def windowsNetworkPath(pathStr: String): AbsolutePath = {
     val splitIndex =
       if (pathStr.indexOf(WindowsSeparator, 2) >= 0) {
         pathStr.indexOf(WindowsSeparator, 2)
@@ -121,15 +119,15 @@ object AbsolutePath {
     val (root, segmentStr) = pathStr.splitAt(splitIndex)
     val host: String = root.substring(2)
     val segments: List[String] = trim(segmentStr, WindowsSeparator).split(WindowsSeparator).filterNot(_.isBlank).toList
-    windowsNetworkFile(host, segments)
+    windowsNetworkPath(host, segments)
   }
 
-  def unixFile(segments: List[String]): AbsolutePath =
+  def unixPath(segments: List[String]): AbsolutePath =
     AbsolutePath(UnixPathBase, segments)
 
-  def unixFile(pathStr: String): AbsolutePath = {
+  def unixPath(pathStr: String): AbsolutePath = {
     val sanitized: String = trim(pathStr.substring(1), UnixSeparator)
-    unixFile(sanitized.split(UnixSeparator).filterNot(_.isBlank).toList)
+    unixPath(sanitized.split(UnixSeparator).filterNot(_.isBlank).toList)
   }
 
   implicit def codex: CodecJson[AbsolutePath] = casecodec2(AbsolutePath.apply, AbsolutePath.unapply)("base", "segments")
@@ -198,13 +196,13 @@ object FilePath {
   implicit class StringPathOps(str: String) {
     def escape(ch: Char): String = str.replace("" + ch, s"\\$ch")
 
-    def toLocalWindowsPath: AbsolutePath = AbsolutePath.localWindowsFile(str)
+    def toLocalWindowsPath: AbsolutePath = AbsolutePath.localWindowsPath(str)
 
-    def toWindowsNetworkPath: AbsolutePath = AbsolutePath.windowsNetworkFile(str)
+    def toWindowsNetworkPath: AbsolutePath = AbsolutePath.windowsNetworkPath(str)
 
-    def toUnixPath: AbsolutePath = AbsolutePath.unixFile(str)
+    def toUnixPath: AbsolutePath = AbsolutePath.unixPath(str)
 
-    def toAbsolutePath: AbsolutePath = AbsolutePath(str)
+    def toAbsolutePath: Option[AbsolutePath] = AbsolutePath(str)
 
     def toRelativePath: RelativePath = {
       val separator =
@@ -226,7 +224,9 @@ object FilePath {
 
     def asUnixPath: AbsolutePath = javaPath.toAbsolutePath.toString.toUnixPath
 
-    def asAbsolutePath: AbsolutePath = javaPath.toAbsolutePath.toString.toAbsolutePath
+    def asAbsolutePath: AbsolutePath =
+      javaPath.toAbsolutePath.toString.toAbsolutePath
+        .getOrElse(throw new IllegalStateException(s"Invalid Path: $javaPath"))
   }
 
   def trim(str: String, separator: Char): String = {
