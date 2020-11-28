@@ -2,12 +2,10 @@ package com.hydrangea.music.script
 
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
-import java.time.Instant
 
 import com.hydrangea.android.adb.{ADB, Device}
 import com.hydrangea.file.FileData._
 import com.hydrangea.file.{AbsolutePath, AndroidRegularFileData, FileData, LocalRegularFileData}
-import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.tagger.TikaTagger
 import com.hydrangea.music.track.{Tag, Track, TrackService}
 
@@ -45,8 +43,7 @@ object TestApp {
             val fileData: LocalRegularFileData =
               file.toLocalRegularFileData.getOrElse(throw new IllegalArgumentException("Not a regular file"))
             val track: Track = TrackService.getLocalTrack(fileData)
-            val record: TrackRecord = TrackRecord(track, Instant.now())
-            println(s"Record for path ($file): $record")
+            println(s"Record for path ($file): $track")
           }
 
           FileVisitResult.CONTINUE

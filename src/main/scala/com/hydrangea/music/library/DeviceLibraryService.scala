@@ -23,7 +23,7 @@ object DeviceLibraryService {
 
   def createDeviceIndex(device: Device): IndexRecord = {
     val indexRecord: IndexRecord = createIndexRecord(device)
-    DeviceIndexRecordService.writeRecord(indexName(device), indexRecord)
+    IndexRecordService.writeRecord(indexName(device), indexRecord)
     logger.debug(s"Creating elasticsearch index for ${device.serial}")
     IndexService.createIndex(indexName(device))
     logger.info(s"Created elasticsearch index for ${device.serial}: ${indexName(device)}")
@@ -58,7 +58,7 @@ object DeviceLibraryService {
 
   def scanDevice(device: Device): IndexRecord = {
     val record: IndexRecord =
-      DeviceIndexRecordService
+      IndexRecordService
         .getRecord(indexName(device))
         .getOrElse(throw new IllegalArgumentException(s"No index record exists for device (${device.serial})"))
 
@@ -85,18 +85,18 @@ object DeviceLibraryService {
 
       val (updatedRecord, deletedRecords) = record.reindex(artistFolders)
       IndexService.remove(indexName(device), deletedRecords.map(_.directoryPath))
-      DeviceIndexRecordService.writeRecord(indexName(device), updatedRecord)
+      IndexRecordService.writeRecord(indexName(device), updatedRecord)
 
       updatedRecord
     }
   }
 
   def getRecordsToSynchronize(device: Device): Option[List[LastIndexedRecord]] =
-    DeviceIndexRecordService.getRecord(indexName(device)).map(record => record.needsUpdating)
+    IndexRecordService.getRecord(indexName(device)).map(record => record.needsUpdating)
 
   def scheduleSynchronization(device: Device, desiredFileCount: Int): Option[DeviceSchedule] =
     device.withCommandLine() { commandLine =>
-      DeviceIndexRecordService
+      IndexRecordService
         .getRecord(indexName(device))
         .map(record => {
           DeviceScheduler(device).schedule(desiredFileCount, record)
@@ -105,11 +105,11 @@ object DeviceLibraryService {
 
   def synchronizeElasticsearchIndex(device: Device, schedule: DeviceSchedule): Unit = {
     val indexRecord: IndexRecord =
-      DeviceIndexRecordService
+      IndexRecordService
         .getRecord(indexName(device))
         .getOrElse(throw new IllegalStateException(s"No index record for repository: ${device.serial}"))
 
-    DeviceSynchronizationJob.run(device, schedule, indexRecord, indexName(device))
+    SynchronizationJob.run(schedule, indexRecord, indexName(device))
   }
 
   //  def runSynchronization(device: Device, schedule: DeviceSchedule): Unit =
@@ -156,6 +156,6 @@ object DeviceLibraryService {
   def dropIndex(device: Device): Unit = {
     logger.info(s"Deleting index for ${device.serial}.")
     IndexService.dropIndex(indexName(device))
-    DeviceIndexRecordService.deleteRecord(indexName(device))
+    IndexRecordService.deleteRecord(indexName(device))
   }
 }

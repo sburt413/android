@@ -13,7 +13,7 @@ import org.slf4j.Logger
 
 import scala.jdk.CollectionConverters._
 
-abstract class IndexRecordService {
+object IndexRecordService {
   private val logger: Logger = org.slf4j.LoggerFactory.getLogger(getClass)
 
   def getRecord(name: IndexName): Option[IndexRecord] =
@@ -61,7 +61,5 @@ abstract class IndexRecordService {
   }
 
   private def filePath(name: IndexName): Path =
-    Paths.get(getRecordFolder.toString, name.value + s"-$fileTag.json")
-
-  protected def fileTag: String
+    Paths.get(getRecordFolder.toString, name.value + s".json")
 }

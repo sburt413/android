@@ -68,7 +68,7 @@ abstract class Scheduler[F <: RegularFileData] {
   }
 }
 
-case class ScheduleEntry[F <: RegularFileData](record: LastIndexedRecord, filePaths: List[F])
+case class ScheduleEntry[F <: RegularFileData](record: LastIndexedRecord, fileData: List[F])
 
 case class Schedule[F <: RegularFileData](queued: List[ScheduleEntry[F]],
                                           skipped: List[LastIndexedRecord],

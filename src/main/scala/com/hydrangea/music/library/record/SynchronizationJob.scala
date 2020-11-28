@@ -4,24 +4,15 @@ import java.time.Instant
 
 import com.hydrangea.file.RegularFileData
 import com.hydrangea.music.library.{IndexName, IndexService, TrackRecord}
+import com.hydrangea.music.track.{Track, TrackService}
 import org.slf4j.Logger
 
 /**
   * A job that tags files based on a given schedule and writes records out to elasticsearch.  The job then updates the
   * index record accordingly.
-  *
-  * @tparam F the type of file
   */
-abstract class SynchronizationJob[F <: RegularFileData] {
+object SynchronizationJob {
   private val logger: Logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
-
-  /**
-    * Reads and returns the MP3 tag information for the given file.
-    *
-    * @param filePath the path to the file to tag
-    * @return the MP3 tag information for the given file
-    */
-  protected def tag(filePath: F): TrackRecord
 
   /**
     * Updates and persists the index record for the completed files.
@@ -30,7 +21,13 @@ abstract class SynchronizationJob[F <: RegularFileData] {
     * @param updatedRecord the record of the file directory that was updated
     * @return the updated [[IndexRecord]]
     */
-  protected def updateAndWriteIndex(record: IndexRecord, updatedRecord: LastIndexedRecord): IndexRecord
+  private def updateAndWriteIndex(indexName: IndexName,
+                                  record: IndexRecord,
+                                  updatedRecord: LastIndexedRecord): IndexRecord = {
+    val updatedIndex: IndexRecord = record.updateRecord(updatedRecord)
+    IndexRecordService.writeRecord(indexName, updatedIndex)
+    updatedIndex
+  }
 
   /**
     * Runs the scheduled job on the records in the given [[Schedule]], updating the index with the given name.  The
@@ -39,10 +36,12 @@ abstract class SynchronizationJob[F <: RegularFileData] {
     * @param schedule    the schedule to run
     * @param indexRecord the [[IndexRecord]] containing the current state of the index
     * @param indexName   the name of the elasticsearch index in question
+    *
+    * @tparam F the type of file
     */
-  def run(schedule: Schedule[F], indexRecord: IndexRecord, indexName: IndexName): Unit = {
+  def run[F <: RegularFileData](schedule: Schedule[F], indexRecord: IndexRecord, indexName: IndexName): Unit = {
     logger.info(s"Processing scheduled files: ${schedule.queued
-      .flatMap(entry => Seq(s"Record: ${entry.record}") ++ entry.filePaths.map(_.location.path.raw))
+      .flatMap(entry => Seq(s"Record: ${entry.record}") ++ entry.fileData.map(_.location.path.raw))
       .mkString("\n")}")
 
     val progressReport: ScheduleProgressReport = ScheduleProgressReport.start(schedule)
@@ -50,11 +49,12 @@ abstract class SynchronizationJob[F <: RegularFileData] {
     val now: Instant = Instant.now
     val finalIndex: IndexRecord =
       schedule.queued.reverse.foldRight(indexRecord)({
-        case (ScheduleEntry(record, filePaths), currentIndex) =>
-          logger.info(s"Tagging ${filePaths.size} files for record $record")
+        case (ScheduleEntry(record, fileData), currentIndex) =>
+          logger.info(s"Tagging ${fileData.size} files for record $record")
           val trackRecords: Seq[TrackRecord] =
-            filePaths.map(file => {
-              val trackRecord: TrackRecord = tag(file)
+            fileData.map(file => {
+              val track: Track = TrackService.readTrack(file)
+              val trackRecord: TrackRecord = TrackRecord(track, Instant.now())
               progressReport.completeFile(record)
               val remaining: String =
                 progressReport.estimatedRemaining().map(rem => s" --- $rem remaining").getOrElse("")
@@ -68,7 +68,7 @@ abstract class SynchronizationJob[F <: RegularFileData] {
           IndexService.putAll(indexName, trackRecords, forceOverwrite = true)
 
           val updatedRecord: LastIndexedRecord = record.updateLastIndexed(now)
-          updateAndWriteIndex(currentIndex, updatedRecord)
+          updateAndWriteIndex(indexName, currentIndex, updatedRecord)
       })
 
     logger.info(s"Final index is: $finalIndex")

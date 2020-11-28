@@ -5,13 +5,15 @@ import java.time.Instant
 
 import com.hydrangea.file.FilePath._
 import com.hydrangea.file.{AbsolutePath, FilePath, LocalRegularFileData}
-import com.hydrangea.music.library.record.{IndexRecord, LastIndexedRecord, RecordCandidate, Schedule}
-import com.hydrangea.music.library.repository.{
-  Repository,
-  RepositoryIndexRecordService,
-  RepositoryScheduler,
-  RepositorySynchronizationJob
+import com.hydrangea.music.library.record.{
+  IndexRecord,
+  IndexRecordService,
+  LastIndexedRecord,
+  RecordCandidate,
+  Schedule,
+  SynchronizationJob
 }
+import com.hydrangea.music.library.repository.{Repository, RepositoryScheduler}
 import org.slf4j.Logger
 
 import scala.jdk.StreamConverters._
@@ -32,7 +34,7 @@ object RepositoryLibraryService {
 
     logger.info(
       s"Writing record index for repository ${indexRecord.rootDirectoryPath} with ${indexRecord.childRecords.length} entries.")
-    RepositoryIndexRecordService.writeRecord(indexName(repository), indexRecord)
+    IndexRecordService.writeRecord(indexName(repository), indexRecord)
 
     logger.debug(s"Creating elasticsearch index for ${repository.rootDirectory}")
     IndexService.createIndex(indexName(repository))
@@ -74,7 +76,7 @@ object RepositoryLibraryService {
 
   def scanRepository(repository: Repository): IndexRecord = {
     val record: IndexRecord =
-      RepositoryIndexRecordService
+      IndexRecordService
         .getRecord(indexName(repository))
         .getOrElse(throw new IllegalArgumentException(s"No index record exists for repository (${repository})"))
 
@@ -90,31 +92,31 @@ object RepositoryLibraryService {
 
     val (updatedRecord, deletedRecords) = record.reindex(candidates)
     IndexService.remove(indexName(repository), deletedRecords.map(_.directoryPath))
-    RepositoryIndexRecordService.writeRecord(indexName(repository), updatedRecord)
+    IndexRecordService.writeRecord(indexName(repository), updatedRecord)
 
     updatedRecord
   }
 
   def getRecordsToSynchronize(repository: Repository): Option[List[LastIndexedRecord]] =
-    RepositoryIndexRecordService.getRecord(indexName(repository)).map(record => record.needsUpdating)
+    IndexRecordService.getRecord(indexName(repository)).map(record => record.needsUpdating)
 
   def scheduleSynchronization(repository: Repository, desiredFileCount: Int): Option[RepositorySchedule] =
-    RepositoryIndexRecordService
+    IndexRecordService
       .getRecord(indexName(repository))
       .map(record => RepositoryScheduler(repository).schedule(desiredFileCount, record))
 
   def synchronizeElasticsearchIndex(repository: Repository, schedule: RepositorySchedule): Unit = {
     val indexRecord: IndexRecord =
-      RepositoryIndexRecordService
+      IndexRecordService
         .getRecord(indexName(repository))
         .getOrElse(throw new IllegalStateException(s"No index record for repository: $repository"))
 
-    RepositorySynchronizationJob.run(schedule, indexRecord, indexName(repository))
+    SynchronizationJob.run(schedule, indexRecord, indexName(repository))
   }
 
   def dropIndex(repository: Repository): Unit = {
     logger.info(s"Deleting index for ${repository.rootDirectory}.")
     IndexService.dropIndex(indexName(repository))
-    RepositoryIndexRecordService.deleteRecord(indexName(repository))
+    IndexRecordService.deleteRecord(indexName(repository))
   }
 }
