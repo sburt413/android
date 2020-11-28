@@ -1,6 +1,6 @@
 package com.hydrangea.repository.merge
 
-import com.hydrangea.music.track.Track
+import com.hydrangea.repository.RepositoryRecord
 
 import scala.annotation.tailrec
 
@@ -19,21 +19,21 @@ sealed trait TrackComparison {
 }
 
 object TrackComparison {
-  def compare(sourceTracks: Set[Track], destinationTracks: Set[Track]): Set[TrackComparison] = {
+  def compare(sourceRecords: Set[RepositoryRecord], destinationRecords: Set[RepositoryRecord]): Set[TrackComparison] = {
     val sourceComparisons: Set[TrackComparison] =
-      sourceTracks.flatMap(source => {
-        matchingByPath(source, destinationTracks)
+      sourceRecords.flatMap(source => {
+        matchingByPath(source, destinationRecords)
           .map(matchingRhs => {
-            val matchingTag = source.tag.equals(matchingRhs.tag)
-            val matchingContent = source.hash.equals(matchingRhs.hash)
+            val matchingTag = source.track.tag.equals(matchingRhs.track.tag)
+            val matchingContent = source.track.hash.equals(matchingRhs.track.hash)
             if (!matchingTag || !matchingContent) {
               TrackConflict(source, matchingRhs)
             } else {
               TrackMatch(source)
             }
           })
-          .orElse(matchingByTagOrContent(source, destinationTracks).flatMap(matchingRhs => {
-            if (source.tag.equals(matchingRhs.tag) && source.hash.equals(matchingRhs.hash)) {
+          .orElse(matchingByTagOrContent(source, destinationRecords).flatMap(matchingRhs => {
+            if (source.track.tag.equals(matchingRhs.track.tag) && source.track.hash.equals(matchingRhs.track.hash)) {
               Some(DuplicateTrack(source, matchingRhs))
             } else {
               // Would be a TrackMatch from above or unrelated
@@ -44,10 +44,11 @@ object TrackComparison {
       })
 
     val destinationComparisons: Set[TrackRemoved] =
-      destinationTracks
+      destinationRecords
         .filter(destination =>
-          sourceTracks.forall(lhs => {
-            !destination.path.equals(lhs.path) && !destination.tag.equals(lhs.tag) && !destination.hash.equals(lhs.hash)
+          sourceRecords.forall(lhs => {
+            !destination.path.equals(lhs.path) && !destination.track.tag
+              .equals(lhs.track.tag) && !destination.track.hash.equals(lhs.track.hash)
           }))
         .map(TrackRemoved)
 
@@ -55,11 +56,12 @@ object TrackComparison {
   }
 
   // TODO: This must go by relative paths from the repository, not the track
-  private def matchingByPath(track: Track, tracks: Set[Track]): Option[Track] =
-    tracks.find(t => track.path.equals(t.path))
+  private def matchingByPath(record: RepositoryRecord, records: Set[RepositoryRecord]): Option[RepositoryRecord] =
+    records.find(t => record.path.equals(t.path))
 
-  private def matchingByTagOrContent(track: Track, tracks: Set[Track]): Option[Track] =
-    tracks.find(t => track.tag.equals(t.tag) || track.hash.equals(t.hash))
+  private def matchingByTagOrContent(record: RepositoryRecord,
+                                     records: Set[RepositoryRecord]): Option[RepositoryRecord] =
+    records.find(r => record.track.tag.equals(r.track.tag) || record.track.hash.equals(r.track.hash))
 
   def deduplicate(comparisons: Set[TrackComparison]): Set[TrackComparison] = {
     @tailrec
@@ -80,22 +82,24 @@ object TrackComparison {
   }
 }
 
-case class TrackMatch(track: Track) extends TrackComparison
+case class TrackMatch(record: RepositoryRecord) extends TrackComparison
 
-case class TrackAdded(track: Track) extends TrackComparison
+case class TrackAdded(record: RepositoryRecord) extends TrackComparison
 
-case class TrackRemoved(track: Track) extends TrackComparison
+case class TrackRemoved(record: RepositoryRecord) extends TrackComparison
 
-case class TrackConflict(lhs: Track, rhs: Track) extends TrackComparison {
-  val conflictingTags: Boolean = !lhs.tag.equals(rhs.tag)
-  val conflictingContent: Boolean = !lhs.hash.equals(rhs.hash)
+case class TrackConflict(source: RepositoryRecord, destination: RepositoryRecord) extends TrackComparison {
+  val conflictingTags: Boolean = !source.track.tag.equals(destination.track.tag)
+  val conflictingContent: Boolean = !source.track.hash.equals(destination.track.hash)
 
-  def isSymmetricWith(conflict: TrackConflict): Boolean = lhs.equals(conflict.rhs) && rhs.equals(conflict.lhs)
+  def isSymmetricWith(conflict: TrackConflict): Boolean =
+    source.equals(conflict.destination) && destination.equals(conflict.source)
 }
 
-case class DuplicateTrack(lhs: Track, rhs: Track) extends TrackComparison {
-  val duplicateTags: Boolean = lhs.tag.equals(rhs.tag)
-  val duplicateContent: Boolean = lhs.hash.equals(rhs.hash)
+case class DuplicateTrack(source: RepositoryRecord, dest: RepositoryRecord) extends TrackComparison {
+  val duplicateTags: Boolean = source.track.tag.equals(dest.track.tag)
+  val duplicateContent: Boolean = source.track.hash.equals(dest.track.hash)
 
-  def isSymmetricWith(duplicate: DuplicateTrack): Boolean = lhs.equals(duplicate.rhs) && rhs.equals(duplicate.lhs)
+  def isSymmetricWith(duplicate: DuplicateTrack): Boolean =
+    source.equals(duplicate.dest) && dest.equals(duplicate.source)
 }

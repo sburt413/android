@@ -1,6 +1,6 @@
 package com.hydrangea.music.repository.merge
 
-import com.hydrangea.music.track.Track
+import com.hydrangea.repository.RepositoryRecord
 import com.hydrangea.repository.merge.{RepositoryMergeStrategy, TrackComparison}
 
 case class RepositoryMerge(comparisons: Set[TrackComparison], resolutions: Set[TrackComparisonResolution]) {
@@ -15,8 +15,8 @@ case class RepositoryMerge(comparisons: Set[TrackComparison], resolutions: Set[T
 }
 
 object RepositoryMerge {
-  def apply(sourceTracks: Set[Track],
-            destinationTracks: Set[Track],
+  def apply(sourceTracks: Set[RepositoryRecord],
+            destinationTracks: Set[RepositoryRecord],
             mergeStrategy: RepositoryMergeStrategy): RepositoryMerge = {
     val comparisons: Set[TrackComparison] = TrackComparison.compare(sourceTracks, destinationTracks)
     RepositoryMerge(comparisons, mergeStrategy)
