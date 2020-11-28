@@ -1,36 +1,37 @@
-package com.hydrangea.music.track.merge
+package com.hydrangea.music.repository.merge
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import com.hydrangea.file.AbsolutePath
 import com.hydrangea.music.track.{Tag, Track}
+import com.hydrangea.repository.merge._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 
 // should have matcher doesn't look as good without Symbol
-class TrackMergeTest extends AnyFlatSpec {
-  import com.hydrangea.music.track.merge.TrackMergeTest._
+class RepositoryMergeTest extends AnyFlatSpec {
+  import RepositoryMergeTest._
 
-  "TrackMerge" should "track resolved and unresolved resolutions" in {
+  "RepositoryMerge" should "track resolved and unresolved resolutions" in {
     val added = TrackAdded(aliceTrack)
     val removed = TrackRemoved(bobTrack)
 
-    val initialMerge = TrackMerge(Set(added, removed), Set.empty[TrackComparisonResolution])
+    val initialMerge = RepositoryMerge(Set(added, removed), Set.empty[TrackComparisonResolution])
     initialMerge.comparisons should equal(Set(added, removed))
     initialMerge.resolutions should be(Symbol("empty"))
     initialMerge.unresolvedComparisons should be(Set(added, removed))
     initialMerge.resolved should be(false)
 
     val ignoreAdded = Ignore(manualResolution = false, added)
-    val addedResolved: TrackMerge = initialMerge.resolve(ignoreAdded)
+    val addedResolved: RepositoryMerge = initialMerge.resolve(ignoreAdded)
     addedResolved.comparisons should equal(Set(added, removed))
     addedResolved.resolutions should be(Set(ignoreAdded))
     addedResolved.unresolvedComparisons should be(Set(removed))
     addedResolved.resolved should be(false)
 
     val removeRemoved = RemoveTrack(manualResolution = true, removed)
-    val allResolved: TrackMerge = addedResolved.resolve(removeRemoved)
+    val allResolved: RepositoryMerge = addedResolved.resolve(removeRemoved)
     allResolved.comparisons should equal(Set(added, removed))
     allResolved.resolutions should be(Set(ignoreAdded, removeRemoved))
     allResolved.unresolvedComparisons should be(Set.empty)
@@ -41,22 +42,22 @@ class TrackMergeTest extends AnyFlatSpec {
     val matched = TrackMatch(aliceTrack)
 
     val ignoreMatched =
-      TrackMergeStrategy(matchStrategy = comparison => Some(Ignore(manualResolution = false, comparison)))
-    val ignoreMerge = TrackMerge(Set(matched), ignoreMatched)
+      RepositoryMergeStrategy(matchStrategy = comparison => Some(Ignore(manualResolution = false, comparison)))
+    val ignoreMerge = RepositoryMerge(Set(matched), ignoreMatched)
     ignoreMerge.comparisons should equal(Set(matched))
     ignoreMerge.resolutions should equal(Set(Ignore(manualResolution = false, matched)))
     ignoreMerge.unresolvedComparisons should be(Symbol("empty"))
     ignoreMerge.resolved should be(true)
 
     val unrelated = TrackAdded(bobTrack)
-    val unresolvedMerge = TrackMerge(Set(matched, unrelated), ignoreMatched)
+    val unresolvedMerge = RepositoryMerge(Set(matched, unrelated), ignoreMatched)
     unresolvedMerge.comparisons should equal(Set(matched, unrelated))
     unresolvedMerge.resolutions should equal(Set(Ignore(manualResolution = false, matched)))
     unresolvedMerge.unresolvedComparisons should be(Set(unrelated))
     unresolvedMerge.resolved should be(false)
 
-    val noResolution = TrackMergeStrategy(matchStrategy = _ => None)
-    val noResolutionMerge = TrackMerge(Set(matched), noResolution)
+    val noResolution = RepositoryMergeStrategy(matchStrategy = _ => None)
+    val noResolutionMerge = RepositoryMerge(Set(matched), noResolution)
     noResolutionMerge.comparisons should equal(Set(matched))
     noResolutionMerge.resolutions should be(Symbol("empty"))
     noResolutionMerge.unresolvedComparisons should be(Set(matched))
@@ -67,30 +68,30 @@ class TrackMergeTest extends AnyFlatSpec {
     val added = TrackAdded(aliceTrack)
 
     val ignoreAdded =
-      TrackMergeStrategy(addedStrategy = comparison => Some(Ignore(manualResolution = false, comparison)))
-    val ignoreMerge = TrackMerge(Set(added), ignoreAdded)
+      RepositoryMergeStrategy(addedStrategy = comparison => Some(Ignore(manualResolution = false, comparison)))
+    val ignoreMerge = RepositoryMerge(Set(added), ignoreAdded)
     ignoreMerge.comparisons should equal(Set(added))
     ignoreMerge.resolutions should equal(Set(Ignore(manualResolution = false, added)))
     ignoreMerge.unresolvedComparisons should be(Symbol("empty"))
     ignoreMerge.resolved should be(true)
 
     val createAdded =
-      TrackMergeStrategy(addedStrategy = comparison => Some(CreateTrack(manualResolution = false, comparison)))
-    val createMerge = TrackMerge(Set(added), createAdded)
+      RepositoryMergeStrategy(addedStrategy = comparison => Some(CreateTrack(manualResolution = false, comparison)))
+    val createMerge = RepositoryMerge(Set(added), createAdded)
     createMerge.comparisons should equal(Set(added))
     createMerge.resolutions should equal(Set(CreateTrack(manualResolution = false, added)))
     createMerge.unresolvedComparisons should be(Symbol("empty"))
     createMerge.resolved should be(true)
 
     val unrelated = TrackMatch(bobTrack)
-    val unresolvedMerge = TrackMerge(Set(added, unrelated), createAdded)
+    val unresolvedMerge = RepositoryMerge(Set(added, unrelated), createAdded)
     unresolvedMerge.comparisons should equal(Set(added, unrelated))
     unresolvedMerge.resolutions should equal(Set(CreateTrack(manualResolution = false, added)))
     unresolvedMerge.unresolvedComparisons should be(Set(unrelated))
     unresolvedMerge.resolved should be(false)
 
-    val noResolution = TrackMergeStrategy(addedStrategy = _ => None)
-    val noResolutionMerge = TrackMerge(Set(added), noResolution)
+    val noResolution = RepositoryMergeStrategy(addedStrategy = _ => None)
+    val noResolutionMerge = RepositoryMerge(Set(added), noResolution)
     noResolutionMerge.comparisons should equal(Set(added))
     noResolutionMerge.resolutions should be(Symbol("empty"))
     noResolutionMerge.unresolvedComparisons should be(Set(added))
@@ -101,30 +102,30 @@ class TrackMergeTest extends AnyFlatSpec {
     val removed = TrackRemoved(aliceTrack)
 
     val ignoreRemoved =
-      TrackMergeStrategy(removedStrategy = comparison => Some(Ignore(manualResolution = false, comparison)))
-    val ignoreMerge = TrackMerge(Set(removed), ignoreRemoved)
+      RepositoryMergeStrategy(removedStrategy = comparison => Some(Ignore(manualResolution = false, comparison)))
+    val ignoreMerge = RepositoryMerge(Set(removed), ignoreRemoved)
     ignoreMerge.comparisons should equal(Set(removed))
     ignoreMerge.resolutions should equal(Set(Ignore(manualResolution = false, removed)))
     ignoreMerge.unresolvedComparisons should be(Symbol("empty"))
     ignoreMerge.resolved should be(true)
 
     val removeRemoved =
-      TrackMergeStrategy(removedStrategy = comparison => Some(RemoveTrack(manualResolution = false, comparison)))
-    val createMerge = TrackMerge(Set(removed), removeRemoved)
+      RepositoryMergeStrategy(removedStrategy = comparison => Some(RemoveTrack(manualResolution = false, comparison)))
+    val createMerge = RepositoryMerge(Set(removed), removeRemoved)
     createMerge.comparisons should equal(Set(removed))
     createMerge.resolutions should equal(Set(RemoveTrack(manualResolution = false, removed)))
     createMerge.unresolvedComparisons should be(Symbol("empty"))
     createMerge.resolved should be(true)
 
     val unrelated = TrackMatch(bobTrack)
-    val unresolvedMerge = TrackMerge(Set(removed, unrelated), removeRemoved)
+    val unresolvedMerge = RepositoryMerge(Set(removed, unrelated), removeRemoved)
     unresolvedMerge.comparisons should equal(Set(removed, unrelated))
     unresolvedMerge.resolutions should equal(Set(RemoveTrack(manualResolution = false, removed)))
     unresolvedMerge.unresolvedComparisons should be(Set(unrelated))
     unresolvedMerge.resolved should be(false)
 
-    val noResolution = TrackMergeStrategy(removedStrategy = _ => None)
-    val noResolutionMerge = TrackMerge(Set(removed), noResolution)
+    val noResolution = RepositoryMergeStrategy(removedStrategy = _ => None)
+    val noResolutionMerge = RepositoryMerge(Set(removed), noResolution)
     noResolutionMerge.comparisons should equal(Set(removed))
     noResolutionMerge.resolutions should be(Symbol("empty"))
     noResolutionMerge.unresolvedComparisons should be(Set(removed))
@@ -136,31 +137,31 @@ class TrackMergeTest extends AnyFlatSpec {
     val conflict = TrackConflict(aliceTrack, alternateAliceTrack)
 
     val ignoreConflict =
-      TrackMergeStrategy(conflictStrategy = comparison => Some(Ignore(manualResolution = false, comparison)))
-    val ignoreMerge = TrackMerge(Set(conflict), ignoreConflict)
+      RepositoryMergeStrategy(conflictStrategy = comparison => Some(Ignore(manualResolution = false, comparison)))
+    val ignoreMerge = RepositoryMerge(Set(conflict), ignoreConflict)
     ignoreMerge.comparisons should equal(Set(conflict))
     ignoreMerge.resolutions should equal(Set(Ignore(manualResolution = false, conflict)))
     ignoreMerge.unresolvedComparisons should be(Symbol("empty"))
     ignoreMerge.resolved should be(true)
 
     val acceptSourceStrategy =
-      TrackMergeStrategy(
+      RepositoryMergeStrategy(
         conflictStrategy = comparison => Some(AcceptSourceChanges(manualResolution = false, comparison)))
-    val acceptSourceMerge = TrackMerge(Set(conflict), acceptSourceStrategy)
+    val acceptSourceMerge = RepositoryMerge(Set(conflict), acceptSourceStrategy)
     acceptSourceMerge.comparisons should equal(Set(conflict))
     acceptSourceMerge.resolutions should equal(Set(AcceptSourceChanges(manualResolution = false, conflict)))
     acceptSourceMerge.unresolvedComparisons should be(Symbol("empty"))
     acceptSourceMerge.resolved should be(true)
 
     val unrelated = TrackMatch(bobTrack)
-    val unresolvedMerge = TrackMerge(Set(conflict, unrelated), acceptSourceStrategy)
+    val unresolvedMerge = RepositoryMerge(Set(conflict, unrelated), acceptSourceStrategy)
     unresolvedMerge.comparisons should equal(Set(conflict, unrelated))
     unresolvedMerge.resolutions should equal(Set(AcceptSourceChanges(manualResolution = false, conflict)))
     unresolvedMerge.unresolvedComparisons should be(Set(unrelated))
     unresolvedMerge.resolved should be(false)
 
-    val noResolution = TrackMergeStrategy(conflictStrategy = _ => None)
-    val noResolutionMerge = TrackMerge(Set(conflict), noResolution)
+    val noResolution = RepositoryMergeStrategy(conflictStrategy = _ => None)
+    val noResolutionMerge = RepositoryMerge(Set(conflict), noResolution)
     noResolutionMerge.comparisons should equal(Set(conflict))
     noResolutionMerge.resolutions should be(Symbol("empty"))
     noResolutionMerge.unresolvedComparisons should be(Set(conflict))
@@ -172,30 +173,30 @@ class TrackMergeTest extends AnyFlatSpec {
     val duplicate = DuplicateTrack(aliceTrack, duplicateAliceTrack)
 
     val ignoreDuplicate =
-      TrackMergeStrategy(duplicateStrategy = comparison => Some(Ignore(manualResolution = false, comparison)))
-    val ignoreMerge = TrackMerge(Set(duplicate), ignoreDuplicate)
+      RepositoryMergeStrategy(duplicateStrategy = comparison => Some(Ignore(manualResolution = false, comparison)))
+    val ignoreMerge = RepositoryMerge(Set(duplicate), ignoreDuplicate)
     ignoreMerge.comparisons should equal(Set(duplicate))
     ignoreMerge.resolutions should equal(Set(Ignore(manualResolution = false, duplicate)))
     ignoreMerge.unresolvedComparisons should be(Symbol("empty"))
     ignoreMerge.resolved should be(true)
 
     val removeTrackStrategy =
-      TrackMergeStrategy(duplicateStrategy = comparison => Some(RemoveTrack(manualResolution = false, comparison)))
-    val removeTrackMerge = TrackMerge(Set(duplicate), removeTrackStrategy)
+      RepositoryMergeStrategy(duplicateStrategy = comparison => Some(RemoveTrack(manualResolution = false, comparison)))
+    val removeTrackMerge = RepositoryMerge(Set(duplicate), removeTrackStrategy)
     removeTrackMerge.comparisons should equal(Set(duplicate))
     removeTrackMerge.resolutions should equal(Set(RemoveTrack(manualResolution = false, duplicate)))
     removeTrackMerge.unresolvedComparisons should be(Symbol("empty"))
     removeTrackMerge.resolved should be(true)
 
     val unrelated = TrackMatch(bobTrack)
-    val unresolvedMerge = TrackMerge(Set(duplicate, unrelated), removeTrackStrategy)
+    val unresolvedMerge = RepositoryMerge(Set(duplicate, unrelated), removeTrackStrategy)
     unresolvedMerge.comparisons should equal(Set(duplicate, unrelated))
     unresolvedMerge.resolutions should equal(Set(RemoveTrack(manualResolution = false, duplicate)))
     unresolvedMerge.unresolvedComparisons should be(Set(unrelated))
     unresolvedMerge.resolved should be(false)
 
-    val noResolution = TrackMergeStrategy(duplicateStrategy = _ => None)
-    val noResolutionMerge = TrackMerge(Set(duplicate), noResolution)
+    val noResolution = RepositoryMergeStrategy(duplicateStrategy = _ => None)
+    val noResolutionMerge = RepositoryMerge(Set(duplicate), noResolution)
     noResolutionMerge.comparisons should equal(Set(duplicate))
     noResolutionMerge.resolutions should be(Symbol("empty"))
     noResolutionMerge.unresolvedComparisons should be(Set(duplicate))
@@ -217,7 +218,7 @@ class TrackMergeTest extends AnyFlatSpec {
     val eveAdded = TrackAdded(eveTrack)
 
     val strategy =
-      TrackMergeStrategy(
+      RepositoryMergeStrategy(
         matchStrategy = comparison => Some(Ignore(manualResolution = false, comparison)),
         addedStrategy = comparison => Some(CreateTrack(manualResolution = false, comparison)),
         removedStrategy = comparison => Some(RemoveTrack(manualResolution = false, comparison)),
@@ -225,7 +226,7 @@ class TrackMergeTest extends AnyFlatSpec {
         duplicateStrategy = comparison => Some(RemoveTrack(manualResolution = false, comparison))
       )
     val merge =
-      TrackMerge(Set(aliceMatch, charlieAdded, dannyRemoved, aliceConflict, bobDuplicate, eveAdded), strategy)
+      RepositoryMerge(Set(aliceMatch, charlieAdded, dannyRemoved, aliceConflict, bobDuplicate, eveAdded), strategy)
     merge.comparisons should equal(Set(aliceMatch, charlieAdded, dannyRemoved, aliceConflict, bobDuplicate, eveAdded))
     val expectedResolutions: Set[TrackComparisonResolution] =
       Set(
@@ -242,7 +243,7 @@ class TrackMergeTest extends AnyFlatSpec {
   }
 }
 
-object TrackMergeTest {
+object RepositoryMergeTest {
   private val now: Instant = Instant.now()
   private val yesterday: Instant = now.minus(1, ChronoUnit.DAYS)
   private val tomorrow: Instant = now.plus(1, ChronoUnit.DAYS)

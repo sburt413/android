@@ -1,4 +1,6 @@
-package com.hydrangea.music.track.merge
+package com.hydrangea.music.repository.merge
+
+import com.hydrangea.repository.merge.{TrackAdded, TrackComparison, TrackConflict}
 
 sealed trait TrackComparisonResolution {
   def manualResolution: Boolean

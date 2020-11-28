@@ -1,6 +1,6 @@
-package com.hydrangea.music.track.merge
+package com.hydrangea.repository.merge
 
-import com.hydrangea.music.track.{Track, merge}
+import com.hydrangea.music.track.Track
 
 import scala.annotation.tailrec
 
@@ -27,14 +27,14 @@ object TrackComparison {
             val matchingTag = source.tag.equals(matchingRhs.tag)
             val matchingContent = source.hash.equals(matchingRhs.hash)
             if (!matchingTag || !matchingContent) {
-              merge.TrackConflict(source, matchingRhs)
+              TrackConflict(source, matchingRhs)
             } else {
               TrackMatch(source)
             }
           })
           .orElse(matchingByTagOrContent(source, destinationTracks).flatMap(matchingRhs => {
             if (source.tag.equals(matchingRhs.tag) && source.hash.equals(matchingRhs.hash)) {
-              Some(merge.DuplicateTrack(source, matchingRhs))
+              Some(DuplicateTrack(source, matchingRhs))
             } else {
               // Would be a TrackMatch from above or unrelated
               None
@@ -54,6 +54,7 @@ object TrackComparison {
     deduplicate(sourceComparisons ++ destinationComparisons)
   }
 
+  // TODO: This must go by relative paths from the repository, not the track
   private def matchingByPath(track: Track, tracks: Set[Track]): Option[Track] =
     tracks.find(t => track.path.equals(t.path))
 

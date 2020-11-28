@@ -1,10 +1,18 @@
-package com.hydrangea.music.track.merge
+package com.hydrangea.music.repository.merge
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import com.hydrangea.file.AbsolutePath
-import com.hydrangea.music.track.{Tag, Track, merge}
+import com.hydrangea.music.track.{Tag, Track}
+import com.hydrangea.repository.merge.{
+  DuplicateTrack,
+  TrackAdded,
+  TrackComparison,
+  TrackConflict,
+  TrackMatch,
+  TrackRemoved
+}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 
@@ -18,26 +26,25 @@ class TrackComparisonTest extends AnyFlatSpec {
 
     // Not a true conflict
     TrackConflict(aliceTrack, aliceTrack).conflictingTags should equal(false)
-    merge.TrackConflict(aliceTrack, aliceTrack).conflictingContent should equal(false)
+    TrackConflict(aliceTrack, aliceTrack).conflictingContent should equal(false)
 
-    val tagConflict: TrackConflict = merge.TrackConflict(aliceTrack, tagConflictTrack)
+    val tagConflict: TrackConflict = TrackConflict(aliceTrack, tagConflictTrack)
     tagConflict.conflictingTags should equal(true)
     tagConflict.conflictingContent should equal(false)
-    tagConflict.isSymmetricWith(merge.TrackConflict(tagConflictTrack, aliceTrack)) should equal(true)
-    tagConflict.isSymmetricWith(merge.TrackConflict(bobTrack, aliceTrack)) should equal(false)
+    tagConflict.isSymmetricWith(TrackConflict(tagConflictTrack, aliceTrack)) should equal(true)
+    tagConflict.isSymmetricWith(TrackConflict(bobTrack, aliceTrack)) should equal(false)
 
-    val contentConflict: TrackConflict = merge.TrackConflict(aliceTrack, contentConflictTrack)
+    val contentConflict: TrackConflict = TrackConflict(aliceTrack, contentConflictTrack)
     contentConflict.conflictingTags should equal(false)
     contentConflict.conflictingContent should equal(true)
-    contentConflict.isSymmetricWith(merge.TrackConflict(contentConflictTrack, aliceTrack)) should equal(true)
-    contentConflict.isSymmetricWith(merge.TrackConflict(bobTrack, aliceTrack)) should equal(false)
+    contentConflict.isSymmetricWith(TrackConflict(contentConflictTrack, aliceTrack)) should equal(true)
+    contentConflict.isSymmetricWith(TrackConflict(bobTrack, aliceTrack)) should equal(false)
 
-    val tagAndContentConflict: TrackConflict = merge.TrackConflict(aliceTrack, tagAndContentConflictTrack)
+    val tagAndContentConflict: TrackConflict = TrackConflict(aliceTrack, tagAndContentConflictTrack)
     tagAndContentConflict.conflictingTags should equal(true)
     tagAndContentConflict.conflictingContent should equal(true)
-    tagAndContentConflict.isSymmetricWith(merge.TrackConflict(tagAndContentConflictTrack, aliceTrack)) should equal(
-      true)
-    tagAndContentConflict.isSymmetricWith(merge.TrackConflict(bobTrack, aliceTrack)) should equal(false)
+    tagAndContentConflict.isSymmetricWith(TrackConflict(tagAndContentConflictTrack, aliceTrack)) should equal(true)
+    tagAndContentConflict.isSymmetricWith(TrackConflict(bobTrack, aliceTrack)) should equal(false)
   }
 
   "DuplicateTrack" should "determine types of duplicates" in {
@@ -49,25 +56,25 @@ class TrackComparisonTest extends AnyFlatSpec {
 
     // Not a true duplicate
     DuplicateTrack(aliceTrack, aliceTrack).duplicateContent should equal(true)
-    merge.DuplicateTrack(aliceTrack, aliceTrack).duplicateTags should equal(true)
+    DuplicateTrack(aliceTrack, aliceTrack).duplicateTags should equal(true)
 
-    val duplicateContent: DuplicateTrack = merge.DuplicateTrack(aliceTrack, duplicateContentTrack)
+    val duplicateContent: DuplicateTrack = DuplicateTrack(aliceTrack, duplicateContentTrack)
     duplicateContent.duplicateTags should equal(false)
     duplicateContent.duplicateContent should equal(true)
-    duplicateContent.isSymmetricWith(merge.DuplicateTrack(duplicateContentTrack, aliceTrack)) should equal(true)
-    duplicateContent.isSymmetricWith(merge.DuplicateTrack(bobTrack, aliceTrack)) should equal(false)
+    duplicateContent.isSymmetricWith(DuplicateTrack(duplicateContentTrack, aliceTrack)) should equal(true)
+    duplicateContent.isSymmetricWith(DuplicateTrack(bobTrack, aliceTrack)) should equal(false)
 
-    val duplicateTag: DuplicateTrack = merge.DuplicateTrack(aliceTrack, duplicateTagTrack)
+    val duplicateTag: DuplicateTrack = DuplicateTrack(aliceTrack, duplicateTagTrack)
     duplicateTag.duplicateTags should equal(true)
     duplicateTag.duplicateContent should equal(false)
-    duplicateTag.isSymmetricWith(merge.DuplicateTrack(duplicateTagTrack, aliceTrack)) should equal(true)
-    duplicateTag.isSymmetricWith(merge.DuplicateTrack(bobTrack, aliceTrack)) should equal(false)
+    duplicateTag.isSymmetricWith(DuplicateTrack(duplicateTagTrack, aliceTrack)) should equal(true)
+    duplicateTag.isSymmetricWith(DuplicateTrack(bobTrack, aliceTrack)) should equal(false)
 
-    val unrelatedDuplicate: DuplicateTrack = merge.DuplicateTrack(aliceTrack, unrelatedTrack)
+    val unrelatedDuplicate: DuplicateTrack = DuplicateTrack(aliceTrack, unrelatedTrack)
     unrelatedDuplicate.duplicateTags should equal(false)
     unrelatedDuplicate.duplicateContent should equal(false)
-    unrelatedDuplicate.isSymmetricWith(merge.DuplicateTrack(unrelatedTrack, aliceTrack)) should equal(true)
-    unrelatedDuplicate.isSymmetricWith(merge.DuplicateTrack(bobTrack, aliceTrack)) should equal(false)
+    unrelatedDuplicate.isSymmetricWith(DuplicateTrack(unrelatedTrack, aliceTrack)) should equal(true)
+    unrelatedDuplicate.isSymmetricWith(DuplicateTrack(bobTrack, aliceTrack)) should equal(false)
   }
 
   "TrackComparison" should "compare tracks with empty sets" in {
@@ -75,13 +82,13 @@ class TrackComparisonTest extends AnyFlatSpec {
     lhsAddComparison should equal(Set(TrackAdded(aliceTrack)))
 
     val lhsAddComparisons: Set[TrackComparison] = TrackComparison.compare(Set(aliceTrack, bobTrack), Set.empty)
-    lhsAddComparisons should equal(Set(merge.TrackAdded(aliceTrack), merge.TrackAdded(bobTrack)))
+    lhsAddComparisons should equal(Set(TrackAdded(aliceTrack), TrackAdded(bobTrack)))
 
     val rhsAddComparison: Set[TrackComparison] = TrackComparison.compare(Set.empty, Set(aliceTrack))
     rhsAddComparison should equal(Set(TrackRemoved(aliceTrack)))
 
     val rhsAddComparisons: Set[TrackComparison] = TrackComparison.compare(Set.empty, Set(aliceTrack, bobTrack))
-    rhsAddComparisons should equal(Set(merge.TrackRemoved(aliceTrack), merge.TrackRemoved(bobTrack)))
+    rhsAddComparisons should equal(Set(TrackRemoved(aliceTrack), TrackRemoved(bobTrack)))
   }
 
   it should "compare different tracks" in {
@@ -102,7 +109,7 @@ class TrackComparisonTest extends AnyFlatSpec {
     val bobTrack2: Track = bobTrack.copy(tag = bobTag.copy(title = "Bob Track 2"))
     val actual: Set[TrackComparison] = TrackComparison.compare(Set(aliceTrack, bobTrack), Set(aliceTrack2, bobTrack2))
     val expected: Set[TrackComparison] =
-      Set(merge.TrackConflict(aliceTrack, aliceTrack2), merge.TrackConflict(bobTrack, bobTrack2))
+      Set(TrackConflict(aliceTrack, aliceTrack2), TrackConflict(bobTrack, bobTrack2))
 
     assert(actual.forall({
       case conflict: TrackConflict => conflict.conflictingTags && !conflict.conflictingContent
@@ -117,7 +124,7 @@ class TrackComparisonTest extends AnyFlatSpec {
 
     val actual: Set[TrackComparison] = TrackComparison.compare(Set(aliceTrack, bobTrack), Set(aliceTrack2, bobTrack2))
     val expected: Set[TrackComparison] =
-      Set(merge.TrackConflict(aliceTrack, aliceTrack2), merge.TrackConflict(bobTrack, bobTrack2))
+      Set(TrackConflict(aliceTrack, aliceTrack2), TrackConflict(bobTrack, bobTrack2))
 
     assert(actual.forall({
       case conflict: TrackConflict => !conflict.conflictingTags && conflict.conflictingContent
@@ -132,7 +139,7 @@ class TrackComparisonTest extends AnyFlatSpec {
 
     val actual: Set[TrackComparison] = TrackComparison.compare(Set(aliceTrack, bobTrack), Set(aliceTrack2, bobTrack2))
     val expected: Set[TrackComparison] =
-      Set(merge.TrackConflict(aliceTrack, aliceTrack2), merge.TrackConflict(bobTrack, bobTrack2))
+      Set(TrackConflict(aliceTrack, aliceTrack2), TrackConflict(bobTrack, bobTrack2))
 
     assert(actual.forall({
       case conflict: TrackConflict => conflict.conflictingTags && conflict.conflictingContent
@@ -148,7 +155,7 @@ class TrackComparisonTest extends AnyFlatSpec {
     val actual: Set[TrackComparison] =
       TrackComparison.compare(Set(aliceTrack, bobTrack), Set(aliceTrackDuplicate, bobTrackDuplicate))
     val expected: Set[TrackComparison] =
-      Set(merge.DuplicateTrack(aliceTrack, aliceTrackDuplicate), merge.DuplicateTrack(bobTrack, bobTrackDuplicate))
+      Set(DuplicateTrack(aliceTrack, aliceTrackDuplicate), DuplicateTrack(bobTrack, bobTrackDuplicate))
 
     actual should equal(expected)
   }
@@ -160,10 +167,10 @@ class TrackComparisonTest extends AnyFlatSpec {
                                                                     Set(bobTrack, charlieTrack2, dannyTrackDuplicate))
 
     comparisons should have size 4
-    comparisons should contain(merge.TrackAdded(aliceTrack))
-    comparisons should contain(merge.TrackMatch(bobTrack))
-    comparisons should contain(merge.TrackConflict(charlieTrack, charlieTrack2))
-    comparisons should contain(merge.DuplicateTrack(dannyTrack, dannyTrackDuplicate))
+    comparisons should contain(TrackAdded(aliceTrack))
+    comparisons should contain(TrackMatch(bobTrack))
+    comparisons should contain(TrackConflict(charlieTrack, charlieTrack2))
+    comparisons should contain(DuplicateTrack(dannyTrack, dannyTrackDuplicate))
   }
 }
 
