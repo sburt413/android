@@ -141,19 +141,20 @@ object PathBase {
     cursor => {
       for {
         root <- (cursor --\ "root").as[String]
-      } yield {
-        if (root.startsWith("/")) {
-          UnixPathBase
-        } else if (root.startsWith("\\")) {
-          val host: JsonField = root.substring(2, root.length - 1)
-          WindowsNetworkPathBase(host)
-        } else if (Character.isLetter(root.charAt(0))) {
-          LocalWindowsPathBase(root.charAt(0))
-        } else {
-          // TODO
-          throw new RuntimeException(s"Could not parse root: $root")
-        }
-      }
+        base <- decode(cursor, root)
+      } yield base
+    }
+
+  private def decode(cursor: HCursor, root: String): DecodeResult[PathBase] =
+    if (root.startsWith("/")) {
+      DecodeResult.ok(UnixPathBase)
+    } else if (root.startsWith("\\")) {
+      val host: JsonField = root.substring(2, root.length - 1)
+      DecodeResult.ok(WindowsNetworkPathBase(host))
+    } else if (Character.isLetter(root.charAt(0))) {
+      DecodeResult.ok(LocalWindowsPathBase(root.charAt(0)))
+    } else {
+      DecodeResult.fail(s"Could not parse root: $root", cursor.history)
     }
 }
 
