@@ -3,23 +3,25 @@ package com.hydrangea.file
 import java.io.{InputStream, OutputStream}
 import java.nio.file.{Files, Path}
 
+import com.hydrangea.DisjunctionOps._
 import com.hydrangea.android.adb.ADBCommandLine
 import com.hydrangea.process.CLIProcess
 import org.apache.commons.io.IOUtils
+import scalaz.Disjunction
 
 object FileSystemService {
   type ReadLambda[A] = InputStream => A
   val blackhole: ReadLambda[Unit] = _ => ()
 
-  def read[A](location: FileLocation)(readerFn: ReadLambda[A]): A =
+  def read[A](location: FileLocation)(readerFn: ReadLambda[A]): Disjunction[String, A] =
     location match {
       case localLocation: LocalFileLocation =>
-        readerFn(Files.newInputStream(localLocation.toJavaPath))
+        readerFn(Files.newInputStream(localLocation.toJavaPath)).toRightDisjunction
       case androidLocation: AndroidLocation =>
         readFromDevice(androidLocation)(readerFn)
     }
 
-  def readFromDevice[A](androidLocation: AndroidLocation)(readStdout: ReadLambda[A]): A = {
+  def readFromDevice[A](androidLocation: AndroidLocation)(readStdout: ReadLambda[A]): Disjunction[String, A] = {
     val commandLine: ADBCommandLine = androidLocation.device.commandline()
     val process: CLIProcess = commandLine.transferProcess(androidLocation.path)
     val (stdout, stderr) = process.createStreamHandlers()
@@ -31,15 +33,14 @@ object FileSystemService {
     stderrReader.start()
     val exitValue: Int = process.run()
 
-    if (exitValue != 0) {
-      // TODO
-      throw new IllegalStateException(s"Error reading from device: $exitValue")
-    }
-
     stdoutReader.join(10000)
     stderrReader.join(10000)
 
-    stdoutReader.output
+    if (exitValue != 0) {
+      s"Error reading from device: $exitValue".toLeftDisjunction
+    } else {
+      stdoutReader.output.toRightDisjunction
+    }
   }
 
   def copyFromDevice(androidLocation: AndroidLocation, targetPath: AbsolutePath): Unit =
