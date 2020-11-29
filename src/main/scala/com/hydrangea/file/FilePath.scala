@@ -6,7 +6,7 @@ import argonaut.Argonaut._
 import argonaut._
 import org.apache.commons.exec.util.StringUtils
 
-case class AbsolutePath(base: PathBase, segments: List[String]) {
+case class AbsolutePath(base: PathBase, segments: Seq[String]) {
   import FilePath._
 
   def raw: String = base.root ++ segments.mkString(base.pathSeparator.toString)
@@ -130,32 +130,20 @@ object AbsolutePath {
     unixPath(sanitized.split(UnixSeparator).filterNot(_.isBlank).toList)
   }
 
-  implicit def codex: CodecJson[AbsolutePath] = casecodec2(AbsolutePath.apply, AbsolutePath.unapply)("base", "segments")
-}
-
-object PathBase {
-  implicit def encode: EncodeJson[PathBase] =
-    base => Json("root" := base.root)
-
-  implicit def decode: DecodeJson[PathBase] =
-    cursor => {
-      for {
-        root <- (cursor --\ "root").as[String]
-        base <- decode(cursor, root)
-      } yield base
+  implicit def encode: EncodeJson[AbsolutePath] = path => path.raw.asJson
+  implicit def decode: DecodeJson[AbsolutePath] = {
+    def toResult(str: String, cursor: HCursor): DecodeResult[AbsolutePath] = {
+      str.toAbsolutePath.map(DecodeResult.ok).getOrElse(DecodeResult.fail("Could not parse path: $str", cursor.history))
     }
 
-  private def decode(cursor: HCursor, root: String): DecodeResult[PathBase] =
-    if (root.startsWith("/")) {
-      DecodeResult.ok(UnixPathBase)
-    } else if (root.startsWith("\\")) {
-      val host: JsonField = root.substring(2, root.length - 1)
-      DecodeResult.ok(WindowsNetworkPathBase(host))
-    } else if (Character.isLetter(root.charAt(0))) {
-      DecodeResult.ok(LocalWindowsPathBase(root.charAt(0)))
-    } else {
-      DecodeResult.fail(s"Could not parse root: $root", cursor.history)
-    }
+    cursor =>
+      {
+        for {
+          raw <- cursor.as[String]
+          path <- toResult(raw, cursor)
+        } yield path
+      }
+  }
 }
 
 case class RelativePath(segments: Seq[String]) {
@@ -182,6 +170,18 @@ case class RelativePath(segments: Seq[String]) {
 
   def isParentDirectory: Boolean =
     segments.equals(Seq(".."))
+}
+
+object RelativePath {
+  // TODO: Escaping scheme for separator characters
+  implicit def encode: EncodeJson[RelativePath] =
+    relative => relative.segments.mkString(FilePath.UnixSeparator.toString).asJson
+  implicit def decode: DecodeJson[RelativePath] =
+    cursor => {
+      for {
+        raw <- cursor.as[String]
+      } yield RelativePath(raw.split(FilePath.UnixSeparator.toString))
+    }
 }
 
 object FilePath {

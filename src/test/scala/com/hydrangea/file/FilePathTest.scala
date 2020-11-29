@@ -1,5 +1,6 @@
 package com.hydrangea.file
 
+import argonaut.Argonaut._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 
@@ -79,5 +80,67 @@ class FilePathTest extends AnyFlatSpec {
   it should "escape special characters" in {
     val escaped: String = AbsolutePath.unixPath("/Music/Sound & Fury/Storm ('Unleashed' Mix)").escaped
     escaped should equal(""""/Music/Sound\ \&\ Fury/Storm\ \(\'Unleashed\'\ Mix\)"""")
+  }
+
+  it should "encode to JSON" in {
+    val unixPath = AbsolutePath(UnixPathBase, List("usr", "bin"))
+    unixPath.asJson.toString() should equal(""""/usr/bin"""")
+
+    val windowsLocalPath = AbsolutePath(LocalWindowsPathBase('D'), List("Windows", "system32"))
+    windowsLocalPath.asJson.toString() should equal(""""D:\\Windows\\system32"""")
+
+    val windowsNetworkPath = AbsolutePath(WindowsNetworkPathBase("hal9k"), List("Jupiter", "secret"))
+    windowsNetworkPath.asJson.toString() should equal(""""\\\\hal9k\\Jupiter\\secret"""")
+
+    val specialCharacterPath =
+      AbsolutePath(UnixPathBase, List("Music \"Home\"", "Sound & Fury", "Storm ('Unleashed' Mix)"))
+    specialCharacterPath.asJson.toString() should equal(""""/Music \"Home\"/Sound & Fury/Storm ('Unleashed' Mix)"""")
+  }
+
+  it should "decode to JSON" in {
+    val userBinPath: AbsolutePath =
+      """"/usr/bin"""".decodeOption[AbsolutePath].getOrElse(throw new AssertionError("Could not decode AbsolutePath"))
+    userBinPath should equal(AbsolutePath(UnixPathBase, List("usr", "bin")))
+
+    val windowsLocalPath: AbsolutePath =
+      """"D:\\Windows\\system32""""
+        .decodeOption[AbsolutePath]
+        .getOrElse(throw new AssertionError("Could not decode AbsolutePath"))
+    windowsLocalPath should equal(AbsolutePath(LocalWindowsPathBase('D'), List("Windows", "system32")))
+
+    val windowsNetworkPath: AbsolutePath =
+      """"\\\\hal9k\\Jupiter\\secret""""
+        .decodeOption[AbsolutePath]
+        .getOrElse(throw new AssertionError("Could not decode AbsolutePath"))
+    windowsNetworkPath should equal(AbsolutePath(WindowsNetworkPathBase("hal9k"), List("Jupiter", "secret")))
+
+    val specialCharacterPath: AbsolutePath =
+      """"/Music \"Home\"/Sound & Fury/Storm ('Unleashed' Mix)""""
+        .decodeOption[AbsolutePath]
+        .getOrElse(throw new AssertionError("Could not decode AbsolutePath"))
+    specialCharacterPath should equal(
+      AbsolutePath(UnixPathBase, List("Music \"Home\"", "Sound & Fury", "Storm ('Unleashed' Mix)")))
+  }
+
+  "Relative Path" should "encode to JSON" in {
+    val trivialRelativePath: RelativePath = RelativePath(Seq("single"))
+    trivialRelativePath.asJson.toString should equal(""""single"""")
+
+    val relativePath: RelativePath = RelativePath(Seq("apache", "tomcat", "logs"))
+    relativePath.asJson.toString should equal(""""apache/tomcat/logs"""")
+  }
+
+  it should "decode to JSON" in {
+    val trivialRelativePath: RelativePath =
+      """"single""""
+        .decodeOption[RelativePath]
+        .getOrElse(throw new AssertionError("Could not decode RelativePath"))
+    trivialRelativePath should equal(RelativePath(Seq("single")))
+
+    val relativePath: RelativePath =
+      """"apache/tomcat/logs""""
+        .decodeOption[RelativePath]
+        .getOrElse(throw new AssertionError("Could not decode RelativePath"))
+    relativePath should equal(RelativePath(Seq("apache", "tomcat", "logs")))
   }
 }
