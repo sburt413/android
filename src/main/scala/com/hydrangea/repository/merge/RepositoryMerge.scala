@@ -1,7 +1,6 @@
-package com.hydrangea.music.repository.merge
+package com.hydrangea.repository.merge
 
 import com.hydrangea.repository.RepositoryRecord
-import com.hydrangea.repository.merge.{RepositoryMergeStrategy, TrackComparison}
 
 case class RepositoryMerge(comparisons: Set[TrackComparison], resolutions: Set[TrackComparisonResolution]) {
   val unresolvedComparisons: Set[TrackComparison] = comparisons.removedAll(resolutions.map(_.comparison))

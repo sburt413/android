@@ -1,8 +1,5 @@
 package com.hydrangea.repository.merge
 
-import com.hydrangea.music.repository.merge
-import com.hydrangea.music.repository.merge.{CreateTrack, Ignore, TrackComparisonResolution}
-
 trait RepositoryMergeStrategy {
   def matchStrategy(trackMatch: TrackMatch): Option[TrackComparisonResolution] = None
   def addedStrategy(added: TrackAdded): Option[TrackComparisonResolution] = None
@@ -36,7 +33,7 @@ object RepositoryMergeStrategy {
   private def acceptAddition(trackAdded: TrackAdded): Option[TrackComparisonResolution] =
     Some(CreateTrack(manualResolution = false, trackAdded))
   private def ignoreDuplicates(duplicateTrack: DuplicateTrack): Option[TrackComparisonResolution] =
-    Some(merge.Ignore(manualResolution = false, duplicateTrack))
+    Some(Ignore(manualResolution = false, duplicateTrack))
 
   val IgnoreMatches = RepositoryMergeStrategy(matchStrategy = ignoreMatch)
   val IgnoreMatchesAcceptAdditions = IgnoreMatches.copy(addedStrategy = acceptAddition)

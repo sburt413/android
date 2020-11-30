@@ -1,12 +1,11 @@
-package com.hydrangea.music.repository.merge
+package com.hydrangea.repository.merge
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import com.hydrangea.file.AbsolutePath
 import com.hydrangea.music.track.{Tag, Track}
-import com.hydrangea.repository.RepositoryRecord
-import com.hydrangea.repository.merge._
+import com.hydrangea.repository.{RepositoryRecord, merge}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 
@@ -18,7 +17,7 @@ class RepositoryMergeTest extends AnyFlatSpec {
     val added = TrackAdded(aliceRecord)
     val removed = TrackRemoved(bobRecord)
 
-    val initialMerge = RepositoryMerge(Set(added, removed), Set.empty[TrackComparisonResolution])
+    val initialMerge = merge.RepositoryMerge(Set(added, removed), Set.empty[TrackComparisonResolution])
     initialMerge.comparisons should equal(Set(added, removed))
     initialMerge.resolutions should be(Symbol("empty"))
     initialMerge.unresolvedComparisons should be(Set(added, removed))

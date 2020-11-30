@@ -1,4 +1,4 @@
-package com.hydrangea.music.repository.merge
+package com.hydrangea.repository.merge
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -6,14 +6,6 @@ import java.time.temporal.ChronoUnit
 import com.hydrangea.file.AbsolutePath
 import com.hydrangea.music.track.{Tag, Track}
 import com.hydrangea.repository.RepositoryRecord
-import com.hydrangea.repository.merge.{
-  DuplicateTrack,
-  TrackAdded,
-  TrackComparison,
-  TrackConflict,
-  TrackMatch,
-  TrackRemoved
-}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 
