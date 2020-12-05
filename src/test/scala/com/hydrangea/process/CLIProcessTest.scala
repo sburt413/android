@@ -8,7 +8,9 @@ import org.scalatest.matchers.should.Matchers._
 class CLIProcessTest extends AnyFlatSpec {
   "Process" should "run" in {
     val args = List("adb")
-    val process: CLIProcess = CLIProcess(args, expectedExitCodes = Some(Set(0, 1)))
+
+    val factory: DefaultCLIProcessFactory = DefaultCLIProcessFactory.instance
+    val process: CLIProcess = factory.create(args, expectedExitCodes = Some(Set(0, 1)))
     val (stdout, stderr) = process.createStreamHandlers()
 
     val stdoutReader = new ReaderThread(stdout, Charset.defaultCharset())

@@ -3,18 +3,21 @@ package com.hydrangea.music.script
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
 
-import com.hydrangea.android.adb.{ADB, Device}
+import com.hydrangea.android.adb.{ADBService, Device}
 import com.hydrangea.file.FileData._
 import com.hydrangea.file.{AbsolutePath, AndroidRegularFileData, FileData, LocalRegularFileData}
 import com.hydrangea.music.tagger.TikaTagger
 import com.hydrangea.music.track.{Tag, Track, TrackService}
+import com.hydrangea.process.DefaultCLIProcessFactory
 
 // TODO
 object TestApp {
 
 //  import com.hydrangea.file.FilePath._
 
-  private val device: Device = ADB.firstDevice
+  val adbService: ADBService = ADBService(DefaultCLIProcessFactory.instance)
+  val device: Device = adbService.firstDevice
+  val tagger: TikaTagger = TikaTagger(DefaultCLIProcessFactory.instance)
 
   private val musicDirectoryPath = "/storage/0123-4567/Music"
   private val devinTownsendDirectoryPath = "/storage/0123-4567/Music/Devin Townsend"
@@ -42,7 +45,7 @@ object TestApp {
           if (file.getFileName.toString.endsWith(".mp3")) {
             val fileData: LocalRegularFileData =
               file.toLocalRegularFileData.getOrElse(throw new IllegalArgumentException("Not a regular file"))
-            val track: Track = TrackService.getLocalTrack(fileData)
+            val track: Track = TrackService(DefaultCLIProcessFactory.instance).getLocalTrack(fileData)
             println(s"Record for path ($file): $track")
           }
 
@@ -54,7 +57,7 @@ object TestApp {
   }
 
   def tag() = {
-    device.withCommandLine() { commandLine =>
+    adbService.withCommandLine(device) { commandLine =>
       //      val path: AndroidPath = "/storage/0123-4567/Test/Addicted/01-03- Bend It Like Bender!.mp3".toAndroidPath
 
       //      val toEval = s"'ls -la ${path.raw.replace(" ", "\\ ").replace("!", "\\!")}'"
@@ -71,7 +74,7 @@ object TestApp {
           })
           .filter(FileData.mp3Filter)
 
-      val tags: Seq[Tag] = mp3Files.map(file => TikaTagger.tag(file.location))
+      val tags: Seq[Tag] = mp3Files.map(file => tagger.tag(file.location))
       println(s"Extracted Tags:\n${tags.mkString("\n")}")
 
       //      val depthCharge: AndroidRegularFile =

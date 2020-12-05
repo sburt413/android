@@ -3,21 +3,22 @@ package com.hydrangea.music.library
 import java.time.Instant
 
 import com.hydrangea.Configuration
-import com.hydrangea.android.adb.Device
+import com.hydrangea.android.adb.{ADBService, Device}
 import com.hydrangea.file.FilePath._
 import com.hydrangea.file.{AbsolutePath, AndroidDirectoryData, AndroidFileData, AndroidRegularFileData, FilePath}
 import com.hydrangea.music.library.device._
 import com.hydrangea.music.library.record._
+import com.hydrangea.music.tagger.TikaTagger
+import com.hydrangea.music.track.TrackService
+import com.hydrangea.process.CLIProcessFactory
 import org.slf4j.Logger
 
 /**
   * A service for managing an index of music for devices.  This service will allow for partial indexing and
   * synchronization of music files on a device.
   */
-object DeviceLibraryService {
-  private val logger: Logger = org.slf4j.LoggerFactory.getLogger(DeviceLibraryService.getClass)
-
-  type DeviceSchedule = Schedule[AndroidRegularFileData]
+class DeviceLibraryService(adbService: ADBService, trackService: TrackService) {
+  import DeviceLibraryService._
 
   def indexName(device: Device): IndexName = IndexName(device.serial.toLowerCase)
 
@@ -32,7 +33,7 @@ object DeviceLibraryService {
   }
 
   private def createIndexRecord(device: Device): IndexRecord =
-    device.withCommandLine() { commandLine =>
+    adbService.withCommandLine(device) { commandLine =>
       val musicDirectoryPath: AbsolutePath = Configuration.deviceMusicDirectory.toUnixPath
       val musicDirectory: AndroidFileData =
         commandLine
@@ -62,8 +63,7 @@ object DeviceLibraryService {
         .getRecord(indexName(device))
         .getOrElse(throw new IllegalArgumentException(s"No index record exists for device (${device.serial})"))
 
-    device.withCommandLine() { commandLine =>
-//      val musicDirectoryPath: AndroidPath = Configuration.deviceMusicDirectory.toAndroidPath
+    adbService.withCommandLine(device) { commandLine =>
       val musicDirectoryPath = Configuration.deviceMusicDirectory.toUnixPath
       val musicDirectory: AndroidDirectoryData =
         commandLine
@@ -95,13 +95,11 @@ object DeviceLibraryService {
     IndexRecordService.getRecord(indexName(device)).map(record => record.needsUpdating)
 
   def scheduleSynchronization(device: Device, desiredFileCount: Int): Option[DeviceSchedule] =
-    device.withCommandLine() { commandLine =>
-      IndexRecordService
-        .getRecord(indexName(device))
-        .map(record => {
-          DeviceScheduler(device).schedule(desiredFileCount, record)
-        })
-    }
+    IndexRecordService
+      .getRecord(indexName(device))
+      .map(record => {
+        DeviceScheduler(adbService, device).schedule(desiredFileCount, record)
+      })
 
   def synchronizeElasticsearchIndex(device: Device, schedule: DeviceSchedule): Unit = {
     val indexRecord: IndexRecord =
@@ -109,7 +107,7 @@ object DeviceLibraryService {
         .getRecord(indexName(device))
         .getOrElse(throw new IllegalStateException(s"No index record for repository: ${device.serial}"))
 
-    SynchronizationJob.run(schedule, indexRecord, indexName(device))
+    SynchronizationJob(trackService).run(schedule, indexRecord, indexName(device))
   }
 
   //  def runSynchronization(device: Device, schedule: DeviceSchedule): Unit =
@@ -157,5 +155,20 @@ object DeviceLibraryService {
     logger.info(s"Deleting index for ${device.serial}.")
     IndexService.dropIndex(indexName(device))
     IndexRecordService.deleteRecord(indexName(device))
+  }
+}
+
+object DeviceLibraryService {
+  private val logger: Logger = org.slf4j.LoggerFactory.getLogger(classOf[DeviceLibraryService])
+
+  type DeviceSchedule = Schedule[AndroidRegularFileData]
+
+  def apply(adbService: ADBService, trackService: TrackService): DeviceLibraryService =
+    new DeviceLibraryService(adbService, trackService)
+
+  def apply(cliProcessFactory: CLIProcessFactory): DeviceLibraryService = {
+    val adbService = ADBService(cliProcessFactory)
+    val tagger = TikaTagger(cliProcessFactory)
+    apply(adbService, TrackService(adbService, tagger))
   }
 }

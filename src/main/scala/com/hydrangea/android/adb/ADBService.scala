@@ -8,7 +8,7 @@ import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForDirectories, Fo
 import com.hydrangea.android.adb.ls.LsParser
 import com.hydrangea.file.FilePath._
 import com.hydrangea.file.{AbsolutePath, AndroidDirectoryData, AndroidFileData, AndroidLocation, AndroidRegularFileData}
-import com.hydrangea.process.{CLIProcess, Timeout}
+import com.hydrangea.process.{CLIProcess, CLIProcessFactory, Timeout}
 import org.slf4j.{Logger, LoggerFactory}
 
 /**
@@ -24,9 +24,10 @@ case class Device(serial: String) {
     * @param timeout the timeout for any commands run on the commandline
     * @return an abstract [[ADBCommandLine]] for communicating with the device
     */
-  def commandline(timeout: Timeout = Device.defaultTimeout,
+  def commandline(cliProcessFactory: CLIProcessFactory,
+                  timeout: Timeout = Device.defaultTimeout,
                   charset: Charset = Charset.defaultCharset()): ADBCommandLine =
-    new ADBCommandLine(this, timeout, charset)
+    new ADBCommandLine(cliProcessFactory, this, timeout, charset)
 
   /**
     * Executes the given function, passing it a commandline.
@@ -36,9 +37,10 @@ case class Device(serial: String) {
     * @tparam A the type of output from the function
     * @return the result of running the function
     */
-  def withCommandLine[A](timeout: Timeout = Device.defaultTimeout, charset: Charset = Charset.defaultCharset())(
-      fn: ADBCommandLine => A): A =
-    fn(new ADBCommandLine(this, timeout, charset))
+  def withCommandLine[A](cliProcessFactory: CLIProcessFactory,
+                         timeout: Timeout = Device.defaultTimeout,
+                         charset: Charset = Charset.defaultCharset())(fn: ADBCommandLine => A): A =
+    fn(new ADBCommandLine(cliProcessFactory, this, timeout, charset))
 }
 
 object Device {
@@ -48,15 +50,32 @@ object Device {
 /**
   * The entry point for accessing devices for ADB (Android Debug Bridge).
   */
-object ADB {
+class ADBService(cliProcessFactory: CLIProcessFactory) {
   private[adb] val logger: Logger = LoggerFactory.getLogger(classOf[Device])
 
-  def commandLine(device: Device, timeout: Timeout, charset: Charset): ADBCommandLine =
-    new ADBCommandLine(device, timeout, charset)
+  def commandLine(device: Device,
+                  timeout: Timeout = Device.defaultTimeout,
+                  charset: Charset = Charset.defaultCharset()): ADBCommandLine =
+    new ADBCommandLine(cliProcessFactory, device, timeout, charset)
+
+  /**
+    * Executes the given function, passing it a commandline.
+    *
+    * @param timeout the timeout for any commands run on the commandline
+    * @param fn the function to execute using the terminal
+    * @tparam A the type of output from the function
+    * @return the result of running the function
+    */
+  def withCommandLine[A](device: Device,
+                         timeout: Timeout = Device.defaultTimeout,
+                         charset: Charset = Charset.defaultCharset())(fn: ADBCommandLine => A): A =
+    fn(commandLine(device, timeout, charset))
 
   def devices: Seq[Device] = {
     val (_, stdout, _) =
-      CLIProcess.runAndParse(Seq("adb", "devices"), Timeout(10, TimeUnit.SECONDS), Charset.defaultCharset())
+      cliProcessFactory
+        .create(Seq("adb", "devices"), Some(Timeout(10, TimeUnit.SECONDS)))
+        .runAndParse(Charset.defaultCharset())
 
     // Skip 'List of devices attached'
     stdout.tail.map(_.split("\\s+")(0)).map(serial => Device(serial))
@@ -73,6 +92,11 @@ object ADB {
   }
 }
 
+object ADBService {
+  def apply(cliProcessFactory: CLIProcessFactory): ADBService =
+    new ADBService(cliProcessFactory)
+}
+
 /**
   * An abstraction over running `adb`.  Most commands are bashed on underlying shell commands, with built in processing
   * of the results.
@@ -80,18 +104,10 @@ object ADB {
   * @param device  the device to run the commands on
   * @param timeout the maximum runtime for a single underlying command
   */
-class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
+class ADBCommandLine(cliProcessFactory: CLIProcessFactory, val device: Device, timeout: Timeout, charset: Charset) {
   import ADBCommandLine.logger
 
   private val adbExec: Seq[String] = Seq("adb", "-s", device.serial)
-
-  /**
-    * Wraps the given command in an `adb` command for this commandline's device.
-    *
-    * @param command the command to run through adb
-    * @return the wrapped command
-    */
-  private def adbCmd(command: String*): Seq[String] = adbExec ++ command
 
   /**
     * Wraps the given command in `adb shell` command for this commandline's device.
@@ -110,8 +126,16 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     */
   private def execOutCmd(command: String*): Seq[String] = adbExec ++ Seq("exec-out") ++ command
 
+  /**
+    * Creates a new process, runs the process and returns the result parsed into lines.
+    *
+    * @param command the command to run
+    * @return the return code, stdout line and stderr lines from the running command
+    */
   private def runAndParse(command: Seq[String]): (Int, Seq[String], Seq[String]) =
-    CLIProcess.runAndParse(command, Some(timeout), charset)
+    cliProcessFactory
+      .create(command, Some(timeout))
+      .runAndParse(charset)
 
   /**
     * Runs an underlying `ls` command and returns the output as files.
@@ -317,7 +341,7 @@ class ADBCommandLine(val device: Device, timeout: Timeout, charset: Charset) {
     * @return the [[Process]] to transfer the data
     */
   def transferProcess(path: AbsolutePath): CLIProcess =
-    CLIProcess(execOutCmd("cat", path.quoted))
+    cliProcessFactory.create(execOutCmd("cat", path.quoted), Some(timeout))
 }
 
 object ADBCommandLine {

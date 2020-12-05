@@ -14,20 +14,14 @@ import com.hydrangea.music.library.record.{
   SynchronizationJob
 }
 import com.hydrangea.music.library.repository.{Repository, RepositoryScheduler}
+import com.hydrangea.music.track.TrackService
+import com.hydrangea.process.CLIProcessFactory
 import org.slf4j.Logger
 
 import scala.jdk.StreamConverters._
 
-object RepositoryLibraryService {
-  private val logger: Logger = org.slf4j.LoggerFactory.getLogger(RepositoryLibraryService.getClass)
-
-  def indexName(repository: Repository): IndexName = {
-    val hashCode: Int = repository.hashCode()
-    val directoryName: String = repository.rootDirectory.location.path.segments.last.toLowerCase
-    IndexName(directoryName + "-" + hashCode)
-  }
-
-  type RepositorySchedule = Schedule[LocalRegularFileData]
+class RepositoryLibraryService(trackService: TrackService) {
+  import RepositoryLibraryService._
 
   def createRepositoryIndex(repository: Repository): IndexRecord = {
     val indexRecord: IndexRecord = createIndexRecord(repository)
@@ -78,7 +72,7 @@ object RepositoryLibraryService {
     val record: IndexRecord =
       IndexRecordService
         .getRecord(indexName(repository))
-        .getOrElse(throw new IllegalArgumentException(s"No index record exists for repository (${repository})"))
+        .getOrElse(throw new IllegalArgumentException(s"No index record exists for repository ($repository)"))
 
     val candidates: List[RecordCandidate] =
       Files
@@ -111,12 +105,30 @@ object RepositoryLibraryService {
         .getRecord(indexName(repository))
         .getOrElse(throw new IllegalStateException(s"No index record for repository: $repository"))
 
-    SynchronizationJob.run(schedule, indexRecord, indexName(repository))
+    SynchronizationJob(trackService).run(schedule, indexRecord, indexName(repository))
   }
 
   def dropIndex(repository: Repository): Unit = {
     logger.info(s"Deleting index for ${repository.rootDirectory}.")
     IndexService.dropIndex(indexName(repository))
     IndexRecordService.deleteRecord(indexName(repository))
+  }
+}
+
+object RepositoryLibraryService {
+  private val logger: Logger = org.slf4j.LoggerFactory.getLogger(RepositoryLibraryService.getClass)
+
+  type RepositorySchedule = Schedule[LocalRegularFileData]
+
+  def apply(trackService: TrackService): RepositoryLibraryService =
+    new RepositoryLibraryService(trackService)
+
+  def apply(cliProcessFactory: CLIProcessFactory): RepositoryLibraryService =
+    apply(TrackService(cliProcessFactory))
+
+  def indexName(repository: Repository): IndexName = {
+    val hashCode: Int = repository.hashCode()
+    val directoryName: String = repository.rootDirectory.location.path.segments.last.toLowerCase
+    IndexName(directoryName + "-" + hashCode)
   }
 }

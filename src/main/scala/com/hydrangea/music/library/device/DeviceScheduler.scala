@@ -1,12 +1,13 @@
 package com.hydrangea.music.library.device
 
-import com.hydrangea.android.adb.Device
+import com.hydrangea.android.adb.{ADBService, Device}
 import com.hydrangea.file.{AbsolutePath, AndroidRegularFileData, FilePath}
 import com.hydrangea.music.library.record.Scheduler
+import com.hydrangea.process.CLIProcessFactory
 
-class DeviceScheduler(device: Device) extends Scheduler[AndroidRegularFileData] {
+class DeviceScheduler(adbService: ADBService, device: Device) extends Scheduler[AndroidRegularFileData] {
   override def scan(path: AbsolutePath): Seq[AndroidRegularFileData] =
-    device.withCommandLine() { commandLine =>
+    adbService.withCommandLine(device) { commandLine =>
       commandLine
         .listRecursive(path)
         .filter(fileData => FilePath.mp3Filter(fileData.location.path))
@@ -15,5 +16,9 @@ class DeviceScheduler(device: Device) extends Scheduler[AndroidRegularFileData] 
 }
 
 object DeviceScheduler {
-  def apply(device: Device): DeviceScheduler = new DeviceScheduler(device)
+  def apply(adbService: ADBService, device: Device): DeviceScheduler =
+    new DeviceScheduler(adbService, device)
+
+  def apply(cliProcessFactory: CLIProcessFactory, device: Device): DeviceScheduler =
+    apply(ADBService(cliProcessFactory), device)
 }

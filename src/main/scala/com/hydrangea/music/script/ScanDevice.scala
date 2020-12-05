@@ -1,8 +1,9 @@
 package com.hydrangea.music.script
 
-import com.hydrangea.android.adb.{ADB, Device}
+import com.hydrangea.android.adb.{ADBService, Device}
 import com.hydrangea.music.library.DeviceLibraryService
 import com.hydrangea.music.script.ScriptHelpers._
+import com.hydrangea.process.DefaultCLIProcessFactory
 import org.rogach.scallop.{ScallopConf, ScallopOption}
 
 /**
@@ -13,10 +14,12 @@ object ScanDevice extends App {
     val device: ScallopOption[String] = opt[String]("device", 'd')
   }
 
+  val adbService: ADBService = ADBService(DefaultCLIProcessFactory.instance)
+
   val cliArgs = new Args(args)
   cliArgs.verify()
   val device: Device =
-    cliArgs.device.map(findDevice).getOrElse(ADB.firstDevice)
+    cliArgs.device.map(findDevice).getOrElse(adbService.firstDevice)
 
-  DeviceLibraryService.scanDevice(device)
+  DeviceLibraryService(DefaultCLIProcessFactory.instance).scanDevice(device)
 }

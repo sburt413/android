@@ -5,14 +5,15 @@ import java.time.Instant
 import com.hydrangea.file.RegularFileData
 import com.hydrangea.music.library.{IndexName, IndexService, TrackRecord}
 import com.hydrangea.music.track.{Track, TrackService}
+import com.hydrangea.process.CLIProcessFactory
 import org.slf4j.Logger
 
 /**
   * A job that tags files based on a given schedule and writes records out to elasticsearch.  The job then updates the
   * index record accordingly.
   */
-object SynchronizationJob {
-  private val logger: Logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
+class SynchronizationJob(trackService: TrackService) {
+  import SynchronizationJob._;
 
   /**
     * Updates and persists the index record for the completed files.
@@ -53,8 +54,8 @@ object SynchronizationJob {
           logger.info(s"Tagging ${fileData.size} files for record $record")
           val trackRecords: Seq[TrackRecord] =
             fileData.map(file => {
-              val track: Track = TrackService.readTrack(file)
-              val trackRecord: TrackRecord = TrackRecord(track, Instant.now())
+              val track: Track = trackService.readTrack(file)
+              val trackRecord = TrackRecord(track, Instant.now())
               progressReport.completeFile(record)
               val remaining: String =
                 progressReport.estimatedRemaining().map(rem => s" --- $rem remaining").getOrElse("")
@@ -73,4 +74,14 @@ object SynchronizationJob {
 
     logger.info(s"Final index is: $finalIndex")
   }
+}
+
+object SynchronizationJob {
+  private val logger: Logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
+
+  def apply(trackService: TrackService): SynchronizationJob =
+    new SynchronizationJob(trackService)
+
+  def apply(cliProcessFactory: CLIProcessFactory): SynchronizationJob =
+    apply(TrackService(cliProcessFactory))
 }

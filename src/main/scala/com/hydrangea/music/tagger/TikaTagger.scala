@@ -6,15 +6,15 @@ import java.nio.file.{Files, Path}
 import com.hydrangea.file.{AndroidLocation, FileLocation, FileSystemService, LocalFileLocation}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.track.Tag
+import com.hydrangea.process.CLIProcessFactory
 import org.apache.tika.metadata.Metadata
 import org.apache.tika.parser.ParseContext
 import org.apache.tika.parser.mp3.Mp3Parser
 import org.slf4j.Logger
 import org.xml.sax.helpers.DefaultHandler
 
-object TikaTagger {
-
-  private val logger: Logger = org.slf4j.LoggerFactory.getLogger(TikaTagger.getClass)
+class TikaTagger(fileSystemService: FileSystemService) {
+  import TikaTagger._
 
   private class ParserThread(inputStream: InputStream, metadata: Metadata) extends Thread {
     val handler = new DefaultHandler
@@ -40,7 +40,7 @@ object TikaTagger {
     val metadata = new Metadata
 
     val start: Long = System.currentTimeMillis()
-    FileSystemService.readFromDevice(androidLocation) { inputStream =>
+    fileSystemService.readFromDevice(androidLocation) { inputStream =>
       parser.parse(inputStream, handler, metadata, context)
     }
 
@@ -82,4 +82,14 @@ object TikaTagger {
 
     Tag(title, album, artist, year, trackNumber, trackCount, discNumber, discCount)
   }
+}
+
+object TikaTagger {
+  private val logger: Logger = org.slf4j.LoggerFactory.getLogger(TikaTagger.getClass)
+
+  def apply(fileSystemService: FileSystemService): TikaTagger =
+    new TikaTagger(fileSystemService)
+
+  def apply(cliProcessFactory: CLIProcessFactory): TikaTagger =
+    apply(FileSystemService(cliProcessFactory))
 }

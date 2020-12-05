@@ -1,9 +1,10 @@
 package com.hydrangea.music.script
 
-import com.hydrangea.android.adb.{ADB, Device}
+import com.hydrangea.android.adb.{ADBService, Device}
 import com.hydrangea.music.library.DeviceLibraryService
 import com.hydrangea.music.library.DeviceLibraryService.DeviceSchedule
 import com.hydrangea.music.script.ScriptHelpers.findDevice
+import com.hydrangea.process.DefaultCLIProcessFactory
 import org.rogach.scallop.{ScallopConf, ScallopOption}
 
 object TagAndIndexDevice extends App {
@@ -16,15 +17,16 @@ object TagAndIndexDevice extends App {
   cliArgs.verify()
 
   val device: Device =
-    cliArgs.device.map(findDevice).getOrElse(ADB.firstDevice)
+    cliArgs.device.map(findDevice).getOrElse(new ADBService(DefaultCLIProcessFactory.instance).firstDevice)
 
   val fileCount: Int =
     cliArgs.fileCount.getOrElse(throw new IllegalArgumentException("A maximum file count must be specified"))
 
+  private val deviceLibraryService = DeviceLibraryService(DefaultCLIProcessFactory.instance)
   val schedule: DeviceSchedule =
-    DeviceLibraryService
+    deviceLibraryService
       .scheduleSynchronization(device, fileCount)
       .getOrElse(throw new IllegalStateException("No index for device."))
 
-  DeviceLibraryService.synchronizeElasticsearchIndex(device, schedule)
+  deviceLibraryService.synchronizeElasticsearchIndex(device, schedule)
 }

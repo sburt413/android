@@ -5,6 +5,7 @@ import java.io.{BufferedReader, InputStreamReader}
 import com.hydrangea.Configuration
 import com.hydrangea.music.library.RepositoryLibraryService
 import com.hydrangea.music.library.repository.Repository
+import com.hydrangea.process.DefaultCLIProcessFactory
 import org.apache.commons.lang3.RandomStringUtils
 
 object DropRepositoryIndex extends App {
@@ -22,7 +23,7 @@ object DropRepositoryIndex extends App {
   private val stdin = new BufferedReader(new InputStreamReader(System.in))
   private val input: String = stdin.readLine()
   if (input.equals(nonce)) {
-    RepositoryLibraryService.dropIndex(repository)
+    RepositoryLibraryService(DefaultCLIProcessFactory.instance).dropIndex(repository)
   } else {
     System.err.println(s"Input did not match token: $input != $nonce")
   }

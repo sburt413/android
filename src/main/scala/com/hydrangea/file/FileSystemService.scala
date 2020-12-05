@@ -5,13 +5,12 @@ import java.nio.file.{Files, Path}
 
 import com.hydrangea.DisjunctionOps._
 import com.hydrangea.android.adb.ADBCommandLine
-import com.hydrangea.process.CLIProcess
+import com.hydrangea.process.{CLIProcess, CLIProcessFactory}
 import org.apache.commons.io.IOUtils
 import scalaz.Disjunction
 
-object FileSystemService {
-  type ReadLambda[A] = InputStream => A
-  val blackhole: ReadLambda[Unit] = _ => ()
+class FileSystemService(cliProcessFactory: CLIProcessFactory) {
+  import FileSystemService._
 
   def read[A](location: FileLocation)(readerFn: ReadLambda[A]): Disjunction[String, A] =
     location match {
@@ -22,7 +21,7 @@ object FileSystemService {
     }
 
   def readFromDevice[A](androidLocation: AndroidLocation)(readStdout: ReadLambda[A]): Disjunction[String, A] = {
-    val commandLine: ADBCommandLine = androidLocation.device.commandline()
+    val commandLine: ADBCommandLine = androidLocation.device.commandline(cliProcessFactory)
     val process: CLIProcess = commandLine.transferProcess(androidLocation.path)
     val (stdout, stderr) = process.createStreamHandlers()
 
@@ -58,4 +57,12 @@ object FileSystemService {
       output = fn(inputStream)
     }
   }
+}
+
+object FileSystemService {
+  type ReadLambda[A] = InputStream => A
+  val blackhole: ReadLambda[Unit] = _ => ()
+
+  def apply(cliProcessFactory: CLIProcessFactory): FileSystemService =
+    new FileSystemService(cliProcessFactory)
 }
