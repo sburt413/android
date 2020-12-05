@@ -5,7 +5,7 @@ import java.time.Instant
 import com.hydrangea.file.RegularFileData
 import com.hydrangea.music.library.{IndexName, IndexService, TrackRecord}
 import com.hydrangea.music.track.{Track, TrackService}
-import com.hydrangea.process.CLIProcessFactory
+import com.hydrangea.process.{CLIProcessFactory, DefaultCLIProcessFactory}
 import org.slf4j.Logger
 
 /**
@@ -82,6 +82,6 @@ object SynchronizationJob {
   def apply(trackService: TrackService): SynchronizationJob =
     new SynchronizationJob(trackService)
 
-  def apply(cliProcessFactory: CLIProcessFactory): SynchronizationJob =
-    apply(TrackService(cliProcessFactory))
+  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): SynchronizationJob =
+    apply(TrackService.default(cliProcessFactory))
 }

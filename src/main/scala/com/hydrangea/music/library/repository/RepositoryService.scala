@@ -7,7 +7,7 @@ import com.hydrangea.file.FileData._
 import com.hydrangea.file.{AbsolutePath, FileData}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.track.TrackService
-import com.hydrangea.process.CLIProcessFactory
+import com.hydrangea.process.{CLIProcessFactory, DefaultCLIProcessFactory}
 
 import scala.jdk.StreamConverters._
 
@@ -33,6 +33,6 @@ object RepositoryService {
   def apply(trackService: TrackService): RepositoryService =
     new RepositoryService(trackService)
 
-  def apply(cliProcessFactory: CLIProcessFactory): RepositoryService =
-    apply(TrackService(cliProcessFactory))
+  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): RepositoryService =
+    apply(TrackService.default(cliProcessFactory))
 }

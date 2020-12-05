@@ -22,7 +22,7 @@ object TagAndIndexDevice extends App {
   val fileCount: Int =
     cliArgs.fileCount.getOrElse(throw new IllegalArgumentException("A maximum file count must be specified"))
 
-  private val deviceLibraryService = DeviceLibraryService(DefaultCLIProcessFactory.instance)
+  private val deviceLibraryService = DeviceLibraryService.default()
   val schedule: DeviceSchedule =
     deviceLibraryService
       .scheduleSynchronization(device, fileCount)

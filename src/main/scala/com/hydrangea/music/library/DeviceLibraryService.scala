@@ -8,9 +8,8 @@ import com.hydrangea.file.FilePath._
 import com.hydrangea.file.{AbsolutePath, AndroidDirectoryData, AndroidFileData, AndroidRegularFileData, FilePath}
 import com.hydrangea.music.library.device._
 import com.hydrangea.music.library.record._
-import com.hydrangea.music.tagger.TikaTagger
 import com.hydrangea.music.track.TrackService
-import com.hydrangea.process.CLIProcessFactory
+import com.hydrangea.process.{CLIProcessFactory, DefaultCLIProcessFactory}
 import org.slf4j.Logger
 
 /**
@@ -166,9 +165,6 @@ object DeviceLibraryService {
   def apply(adbService: ADBService, trackService: TrackService): DeviceLibraryService =
     new DeviceLibraryService(adbService, trackService)
 
-  def apply(cliProcessFactory: CLIProcessFactory): DeviceLibraryService = {
-    val adbService = ADBService(cliProcessFactory)
-    val tagger = TikaTagger(cliProcessFactory)
-    apply(adbService, TrackService(adbService, tagger))
-  }
+  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): DeviceLibraryService =
+    apply(ADBService.default(cliProcessFactory), TrackService.default(cliProcessFactory))
 }

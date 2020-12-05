@@ -26,7 +26,7 @@ object DropDeviceIndex extends App {
   private val stdin = new BufferedReader(new InputStreamReader(System.in))
   private val input: String = stdin.readLine()
   if (input.equals(nonce)) {
-    DeviceLibraryService(DefaultCLIProcessFactory.instance).dropIndex(device)
+    DeviceLibraryService.default().dropIndex(device)
   } else {
     System.err.println(s"Input did not match token: $input != $nonce")
   }

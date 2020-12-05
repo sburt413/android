@@ -6,7 +6,7 @@ import java.nio.file.{Files, Path}
 import com.hydrangea.file.{AndroidLocation, FileLocation, FileSystemService, LocalFileLocation}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.track.Tag
-import com.hydrangea.process.CLIProcessFactory
+import com.hydrangea.process.{CLIProcessFactory, DefaultCLIProcessFactory}
 import org.apache.tika.metadata.Metadata
 import org.apache.tika.parser.ParseContext
 import org.apache.tika.parser.mp3.Mp3Parser
@@ -90,6 +90,6 @@ object TikaTagger {
   def apply(fileSystemService: FileSystemService): TikaTagger =
     new TikaTagger(fileSystemService)
 
-  def apply(cliProcessFactory: CLIProcessFactory): TikaTagger =
-    apply(FileSystemService(cliProcessFactory))
+  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): TikaTagger =
+    apply(FileSystemService.default(cliProcessFactory))
 }

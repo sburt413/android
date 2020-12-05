@@ -5,7 +5,7 @@ import java.nio.file.{Files, Path}
 
 import com.hydrangea.DisjunctionOps._
 import com.hydrangea.android.adb.ADBCommandLine
-import com.hydrangea.process.{CLIProcess, CLIProcessFactory}
+import com.hydrangea.process.{CLIProcess, CLIProcessFactory, DefaultCLIProcessFactory}
 import org.apache.commons.io.IOUtils
 import scalaz.Disjunction
 
@@ -63,6 +63,6 @@ object FileSystemService {
   type ReadLambda[A] = InputStream => A
   val blackhole: ReadLambda[Unit] = _ => ()
 
-  def apply(cliProcessFactory: CLIProcessFactory): FileSystemService =
+  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): FileSystemService =
     new FileSystemService(cliProcessFactory)
 }

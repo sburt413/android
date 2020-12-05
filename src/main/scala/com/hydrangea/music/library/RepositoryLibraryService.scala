@@ -15,7 +15,7 @@ import com.hydrangea.music.library.record.{
 }
 import com.hydrangea.music.library.repository.{Repository, RepositoryScheduler}
 import com.hydrangea.music.track.TrackService
-import com.hydrangea.process.CLIProcessFactory
+import com.hydrangea.process.{CLIProcessFactory, DefaultCLIProcessFactory}
 import org.slf4j.Logger
 
 import scala.jdk.StreamConverters._
@@ -123,8 +123,8 @@ object RepositoryLibraryService {
   def apply(trackService: TrackService): RepositoryLibraryService =
     new RepositoryLibraryService(trackService)
 
-  def apply(cliProcessFactory: CLIProcessFactory): RepositoryLibraryService =
-    apply(TrackService(cliProcessFactory))
+  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): RepositoryLibraryService =
+    apply(TrackService.default(cliProcessFactory))
 
   def indexName(repository: Repository): IndexName = {
     val hashCode: Int = repository.hashCode()

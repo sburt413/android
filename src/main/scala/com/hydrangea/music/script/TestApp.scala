@@ -8,16 +8,15 @@ import com.hydrangea.file.FileData._
 import com.hydrangea.file.{AbsolutePath, AndroidRegularFileData, FileData, LocalRegularFileData}
 import com.hydrangea.music.tagger.TikaTagger
 import com.hydrangea.music.track.{Tag, Track, TrackService}
-import com.hydrangea.process.DefaultCLIProcessFactory
 
 // TODO
 object TestApp {
 
 //  import com.hydrangea.file.FilePath._
 
-  val adbService: ADBService = ADBService(DefaultCLIProcessFactory.instance)
+  val adbService: ADBService = ADBService.default()
   val device: Device = adbService.firstDevice
-  val tagger: TikaTagger = TikaTagger(DefaultCLIProcessFactory.instance)
+  val tagger: TikaTagger = TikaTagger.default()
 
   private val musicDirectoryPath = "/storage/0123-4567/Music"
   private val devinTownsendDirectoryPath = "/storage/0123-4567/Music/Devin Townsend"
@@ -45,7 +44,7 @@ object TestApp {
           if (file.getFileName.toString.endsWith(".mp3")) {
             val fileData: LocalRegularFileData =
               file.toLocalRegularFileData.getOrElse(throw new IllegalArgumentException("Not a regular file"))
-            val track: Track = TrackService(DefaultCLIProcessFactory.instance).getLocalTrack(fileData)
+            val track: Track = TrackService.default().getLocalTrack(fileData)
             println(s"Record for path ($file): $track")
           }
 

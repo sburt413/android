@@ -20,6 +20,6 @@ object CreateDeviceIndex extends App {
   cliArgs.verify()
   val device: Device = cliArgs.device.map(findDevice).getOrElse(adbService.firstDevice)
 
-  val deviceLibraryService: DeviceLibraryService = DeviceLibraryService(DefaultCLIProcessFactory.instance)
+  val deviceLibraryService: DeviceLibraryService = DeviceLibraryService.default()
   deviceLibraryService.createDeviceIndex(device)
 }
