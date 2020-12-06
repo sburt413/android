@@ -15,12 +15,12 @@ import com.hydrangea.music.library.record.{
 }
 import com.hydrangea.music.library.repository.{Repository, RepositoryScheduler}
 import com.hydrangea.music.track.TrackService
-import com.hydrangea.process.{CLIProcessFactory, DefaultCLIProcessFactory}
+import javax.inject.Inject
 import org.slf4j.Logger
 
 import scala.jdk.StreamConverters._
 
-class RepositoryLibraryService(trackService: TrackService) {
+class RepositoryLibraryService @Inject()(trackService: TrackService) {
   import RepositoryLibraryService._
 
   def createRepositoryIndex(repository: Repository): IndexRecord = {
@@ -122,9 +122,6 @@ object RepositoryLibraryService {
 
   def apply(trackService: TrackService): RepositoryLibraryService =
     new RepositoryLibraryService(trackService)
-
-  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): RepositoryLibraryService =
-    apply(TrackService.default(cliProcessFactory))
 
   def indexName(repository: Repository): IndexName = {
     val hashCode: Int = repository.hashCode()

@@ -9,14 +9,14 @@ import com.hydrangea.file.{AbsolutePath, AndroidDirectoryData, AndroidFileData, 
 import com.hydrangea.music.library.device._
 import com.hydrangea.music.library.record._
 import com.hydrangea.music.track.TrackService
-import com.hydrangea.process.{CLIProcessFactory, DefaultCLIProcessFactory}
+import javax.inject.Inject
 import org.slf4j.Logger
 
 /**
   * A service for managing an index of music for devices.  This service will allow for partial indexing and
   * synchronization of music files on a device.
   */
-class DeviceLibraryService(adbService: ADBService, trackService: TrackService) {
+class DeviceLibraryService @Inject()(adbService: ADBService, trackService: TrackService) {
   import DeviceLibraryService._
 
   def indexName(device: Device): IndexName = IndexName(device.serial.toLowerCase)
@@ -164,7 +164,4 @@ object DeviceLibraryService {
 
   def apply(adbService: ADBService, trackService: TrackService): DeviceLibraryService =
     new DeviceLibraryService(adbService, trackService)
-
-  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): DeviceLibraryService =
-    apply(ADBService.default(cliProcessFactory), TrackService.default(cliProcessFactory))
 }

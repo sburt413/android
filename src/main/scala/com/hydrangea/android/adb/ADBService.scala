@@ -9,7 +9,7 @@ import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForDirectories, Fo
 import com.hydrangea.android.adb.ls.LsParser
 import com.hydrangea.file.FilePath._
 import com.hydrangea.file.{AbsolutePath, AndroidDirectoryData, AndroidFileData, AndroidLocation, AndroidRegularFileData}
-import com.hydrangea.process.{CLIProcess, CLIProcessFactory, DefaultCLIProcessFactory, Timeout}
+import com.hydrangea.process.{CLIProcess, CLIProcessFactory, Timeout}
 import org.slf4j.{Logger, LoggerFactory}
 
 /**
@@ -96,9 +96,6 @@ class ADBService @Inject()(cliProcessFactory: CLIProcessFactory) {
 object ADBService {
   def apply(cliProcessFactory: CLIProcessFactory): ADBService =
     new ADBService(cliProcessFactory)
-
-  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): ADBService =
-    apply(cliProcessFactory)
 }
 
 /**

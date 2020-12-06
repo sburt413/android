@@ -1,9 +1,12 @@
 package com.hydrangea.music.script
 
+import com.google.inject.Guice
 import com.hydrangea.Configuration
 import com.hydrangea.music.library.RepositoryLibraryService
 import com.hydrangea.music.library.RepositoryLibraryService.RepositorySchedule
 import com.hydrangea.music.library.repository.Repository
+import com.hydrangea.process.DefaultCLIProcessFactoryModule
+import net.codingwell.scalaguice.InjectorExtensions._
 import org.rogach.scallop.{ScallopConf, ScallopOption}
 
 object TagAndIndexRepository extends App {
@@ -17,6 +20,8 @@ object TagAndIndexRepository extends App {
   val cliArgs = new Args(args.toSeq)
   cliArgs.verify()
 
+  val injector = Guice.createInjector(DefaultCLIProcessFactoryModule)
+
   val directory =
     Configuration.repositoryDirectory.toLocalDirectoryData
       .getOrElse(
@@ -27,11 +32,11 @@ object TagAndIndexRepository extends App {
   val fileCount: Int =
     cliArgs.fileCount.getOrElse(throw new IllegalArgumentException("A maximum file count must be specified"))
 
+  val repositoryLibraryService: RepositoryLibraryService = injector.instance[RepositoryLibraryService]
   val schedule: RepositorySchedule =
-    RepositoryLibraryService
-      .default()
+    repositoryLibraryService
       .scheduleSynchronization(repository, fileCount)
       .getOrElse(throw new IllegalStateException("No index for repository."))
 
-  RepositoryLibraryService.default().synchronizeElasticsearchIndex(repository, schedule)
+  repositoryLibraryService.synchronizeElasticsearchIndex(repository, schedule)
 }

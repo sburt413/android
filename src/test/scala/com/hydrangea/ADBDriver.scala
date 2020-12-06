@@ -23,8 +23,8 @@ class ADBDriver extends AnyFlatSpec {
         throw new IllegalStateException("Illegal Path"))
 
     val adbService = injector.instance[ADBService]
-    val fileSystemService: FileSystemService = FileSystemService.default()
-    val tagger = TikaTagger(fileSystemService)
+    val fileSystemService: FileSystemService = injector.instance[FileSystemService]
+    val tagger: TikaTagger = injector.instance[TikaTagger]
 
     val device: Device = adbService.firstDevice
 

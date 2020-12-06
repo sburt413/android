@@ -3,20 +3,22 @@ package com.hydrangea.music.script
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
 
+import com.google.inject.Guice
 import com.hydrangea.android.adb.{ADBService, Device}
 import com.hydrangea.file.FileData._
 import com.hydrangea.file.{AbsolutePath, AndroidRegularFileData, FileData, LocalRegularFileData}
 import com.hydrangea.music.tagger.TikaTagger
 import com.hydrangea.music.track.{Tag, Track, TrackService}
+import com.hydrangea.process.DefaultCLIProcessFactoryModule
+import net.codingwell.scalaguice.InjectorExtensions._
 
 // TODO
 object TestApp {
+  val injector = Guice.createInjector(DefaultCLIProcessFactoryModule)
 
-//  import com.hydrangea.file.FilePath._
-
-  val adbService: ADBService = ADBService.default()
+  val adbService: ADBService = injector.instance[ADBService]
   val device: Device = adbService.firstDevice
-  val tagger: TikaTagger = TikaTagger.default()
+  val tagger: TikaTagger = injector.instance[TikaTagger]
 
   private val musicDirectoryPath = "/storage/0123-4567/Music"
   private val devinTownsendDirectoryPath = "/storage/0123-4567/Music/Devin Townsend"
@@ -35,6 +37,9 @@ object TestApp {
 //        .getOrElse(throw new IllegalStateException("Repository directory does not exist."))
 //
 //    RepositoryLibraryService.createRepositoryIndex(Repository(repositoryDirectory))
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule)
+    val trackService: TrackService = injector.instance[TrackService]
+
     val apcPath: Path = Paths.get("Z:\\A Perfect Circle\\Mer de Noms")
     Files.walkFileTree(
       apcPath,
@@ -44,7 +49,7 @@ object TestApp {
           if (file.getFileName.toString.endsWith(".mp3")) {
             val fileData: LocalRegularFileData =
               file.toLocalRegularFileData.getOrElse(throw new IllegalArgumentException("Not a regular file"))
-            val track: Track = TrackService.default().getLocalTrack(fileData)
+            val track: Track = trackService.getLocalTrack(fileData)
             println(s"Record for path ($file): $track")
           }
 

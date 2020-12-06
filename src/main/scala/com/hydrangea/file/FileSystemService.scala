@@ -3,13 +3,14 @@ package com.hydrangea.file
 import java.io.{InputStream, OutputStream}
 import java.nio.file.{Files, Path}
 
+import com.google.inject.Inject
 import com.hydrangea.DisjunctionOps._
 import com.hydrangea.android.adb.ADBCommandLine
-import com.hydrangea.process.{CLIProcess, CLIProcessFactory, DefaultCLIProcessFactory}
+import com.hydrangea.process.{CLIProcess, CLIProcessFactory}
 import org.apache.commons.io.IOUtils
 import scalaz.Disjunction
 
-class FileSystemService(cliProcessFactory: CLIProcessFactory) {
+class FileSystemService @Inject()(cliProcessFactory: CLIProcessFactory) {
   import FileSystemService._
 
   def read[A](location: FileLocation)(readerFn: ReadLambda[A]): Disjunction[String, A] =
@@ -62,7 +63,4 @@ class FileSystemService(cliProcessFactory: CLIProcessFactory) {
 object FileSystemService {
   type ReadLambda[A] = InputStream => A
   val blackhole: ReadLambda[Unit] = _ => ()
-
-  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): FileSystemService =
-    new FileSystemService(cliProcessFactory)
 }

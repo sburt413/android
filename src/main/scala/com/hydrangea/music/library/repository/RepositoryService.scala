@@ -7,11 +7,11 @@ import com.hydrangea.file.FileData._
 import com.hydrangea.file.{AbsolutePath, FileData}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.track.TrackService
-import com.hydrangea.process.{CLIProcessFactory, DefaultCLIProcessFactory}
+import javax.inject.Inject
 
 import scala.jdk.StreamConverters._
 
-class RepositoryService(trackService: TrackService) {
+class RepositoryService @Inject()(trackService: TrackService) {
   def readRepository(path: AbsolutePath): List[TrackRecord] = {
     val tags: List[TrackRecord] =
       Files
@@ -32,7 +32,4 @@ class RepositoryService(trackService: TrackService) {
 object RepositoryService {
   def apply(trackService: TrackService): RepositoryService =
     new RepositoryService(trackService)
-
-  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): RepositoryService =
-    apply(TrackService.default(cliProcessFactory))
 }

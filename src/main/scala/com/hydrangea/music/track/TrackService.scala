@@ -3,11 +3,11 @@ package com.hydrangea.music.track
 import com.hydrangea.android.adb.ADBService
 import com.hydrangea.file.{AndroidRegularFileData, LocalRegularFileData, RegularFileData}
 import com.hydrangea.music.tagger.TikaTagger
-import com.hydrangea.process.{CLIProcessFactory, DefaultCLIProcessFactory}
+import javax.inject.Inject
 import org.apache.commons.codec.digest.DigestUtils
 import org.apache.commons.codec.digest.MessageDigestAlgorithms.SHA_1
 
-class TrackService(adbService: ADBService, tagger: TikaTagger) {
+class TrackService @Inject()(adbService: ADBService, tagger: TikaTagger) {
   def readTrack(file: RegularFileData): Track =
     file match {
       case local: LocalRegularFileData     => getLocalTrack(local)
@@ -34,7 +34,4 @@ class TrackService(adbService: ADBService, tagger: TikaTagger) {
 object TrackService {
   def apply(adbService: ADBService, tikaTagger: TikaTagger): TrackService =
     new TrackService(adbService, tikaTagger)
-
-  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): TrackService =
-    apply(ADBService.default(cliProcessFactory), TikaTagger.default(cliProcessFactory))
 }

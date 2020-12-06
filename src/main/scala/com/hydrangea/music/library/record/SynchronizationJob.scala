@@ -5,14 +5,14 @@ import java.time.Instant
 import com.hydrangea.file.RegularFileData
 import com.hydrangea.music.library.{IndexName, IndexService, TrackRecord}
 import com.hydrangea.music.track.{Track, TrackService}
-import com.hydrangea.process.{CLIProcessFactory, DefaultCLIProcessFactory}
+import javax.inject.Inject
 import org.slf4j.Logger
 
 /**
   * A job that tags files based on a given schedule and writes records out to elasticsearch.  The job then updates the
   * index record accordingly.
   */
-class SynchronizationJob(trackService: TrackService) {
+class SynchronizationJob @Inject()(trackService: TrackService) {
   import SynchronizationJob._;
 
   /**
@@ -81,7 +81,4 @@ object SynchronizationJob {
 
   def apply(trackService: TrackService): SynchronizationJob =
     new SynchronizationJob(trackService)
-
-  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): SynchronizationJob =
-    apply(TrackService.default(cliProcessFactory))
 }

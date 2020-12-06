@@ -3,17 +3,17 @@ package com.hydrangea.music.tagger
 import java.io.InputStream
 import java.nio.file.{Files, Path}
 
+import com.google.inject.Inject
 import com.hydrangea.file.{AndroidLocation, FileLocation, FileSystemService, LocalFileLocation}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.track.Tag
-import com.hydrangea.process.{CLIProcessFactory, DefaultCLIProcessFactory}
 import org.apache.tika.metadata.Metadata
 import org.apache.tika.parser.ParseContext
 import org.apache.tika.parser.mp3.Mp3Parser
 import org.slf4j.Logger
 import org.xml.sax.helpers.DefaultHandler
 
-class TikaTagger(fileSystemService: FileSystemService) {
+class TikaTagger @Inject()(fileSystemService: FileSystemService) {
   import TikaTagger._
 
   private class ParserThread(inputStream: InputStream, metadata: Metadata) extends Thread {
@@ -89,7 +89,4 @@ object TikaTagger {
 
   def apply(fileSystemService: FileSystemService): TikaTagger =
     new TikaTagger(fileSystemService)
-
-  def default(cliProcessFactory: CLIProcessFactory = DefaultCLIProcessFactory.instance): TikaTagger =
-    apply(FileSystemService.default(cliProcessFactory))
 }
