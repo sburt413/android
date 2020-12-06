@@ -4,7 +4,6 @@ import com.hydrangea.Configuration
 import com.hydrangea.music.library.RepositoryLibraryService
 import com.hydrangea.music.library.RepositoryLibraryService.RepositorySchedule
 import com.hydrangea.music.library.repository.Repository
-import com.hydrangea.process.DefaultCLIProcessFactory
 import org.rogach.scallop.{ScallopConf, ScallopOption}
 
 object TagAndIndexRepository extends App {
@@ -15,7 +14,7 @@ object TagAndIndexRepository extends App {
     val fileCount = opt[Int]("count", 'c', required = true)
   }
 
-  val cliArgs = new Args(args)
+  val cliArgs = new Args(args.toSeq)
   cliArgs.verify()
 
   val directory =
@@ -29,9 +28,10 @@ object TagAndIndexRepository extends App {
     cliArgs.fileCount.getOrElse(throw new IllegalArgumentException("A maximum file count must be specified"))
 
   val schedule: RepositorySchedule =
-    RepositoryLibraryService(DefaultCLIProcessFactory.instance)
+    RepositoryLibraryService
+      .default()
       .scheduleSynchronization(repository, fileCount)
       .getOrElse(throw new IllegalStateException("No index for repository."))
 
-  RepositoryLibraryService(DefaultCLIProcessFactory.instance).synchronizeElasticsearchIndex(repository, schedule)
+  RepositoryLibraryService.default().synchronizeElasticsearchIndex(repository, schedule)
 }

@@ -14,7 +14,7 @@ object DropDeviceIndex extends App {
     val device: ScallopOption[String] = opt[String]("device", 'd')
   }
 
-  val cliArgs = new Args(args)
+  val cliArgs = new Args(args.toSeq)
   cliArgs.verify()
 
   val adbService: ADBService = ADBService(DefaultCLIProcessFactory.instance)

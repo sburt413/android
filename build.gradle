@@ -33,7 +33,8 @@ dependencies {
     compile group: 'com.beachape', name: 'enumeratum-macros_2.13', version: '1.6.0'
     compile group: 'com.beachape', name: 'enumeratum-argonaut_2.13', version: '1.6.0'
     compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.2'
-
+    compile group: 'com.google.inject', name: 'guice', version: '5.0.0-BETA-1'
+    compile group: 'net.codingwell', name: 'scala-guice_2.13', version: '4.2.11'
 
     implementation 'org.scala-lang.modules:scala-java8-compat_2.11:0.8.0-RC3'
     implementation 'org.scala-lang:scala-library:2.13.2'

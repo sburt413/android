@@ -13,7 +13,7 @@ object TagAndIndexDevice extends App {
     val fileCount = opt[Int]("count", 'c', required = true)
   }
 
-  val cliArgs = new Args(args)
+  val cliArgs = new Args(args.toSeq)
   cliArgs.verify()
 
   val device: Device =

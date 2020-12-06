@@ -3,7 +3,9 @@ package com.hydrangea.process
 import java.io.{InputStream, PipedInputStream, PipedOutputStream}
 import java.nio.charset.Charset
 
+import com.google.inject.AbstractModule
 import com.hydrangea.process.CLIProcess.WaitFor
+import net.codingwell.scalaguice.ScalaModule
 import org.apache.commons.exec.{CommandLine, DefaultExecutor, ExecuteWatchdog, Executor, PumpStreamHandler}
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -38,6 +40,12 @@ object DefaultCLIProcessFactory {
                   charset: Charset): (Int, Seq[String], Seq[String]) = {
     val process: CLIProcess = instance.create(command, timeout)
     process.runAndParse(charset)
+  }
+}
+
+object DefaultCLIProcessFactoryModule extends AbstractModule with ScalaModule {
+  override def configure(): Unit = {
+    bind[CLIProcessFactory].toInstance(DefaultCLIProcessFactory.instance)
   }
 }
 

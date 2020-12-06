@@ -16,10 +16,10 @@ object ScanDevice extends App {
 
   val adbService: ADBService = ADBService(DefaultCLIProcessFactory.instance)
 
-  val cliArgs = new Args(args)
+  val cliArgs = new Args(args.toSeq)
   cliArgs.verify()
   val device: Device =
     cliArgs.device.map(findDevice).getOrElse(adbService.firstDevice)
 
-  DeviceLibraryService(DefaultCLIProcessFactory.instance).scanDevice(device)
+  DeviceLibraryService.default().scanDevice(device)
 }

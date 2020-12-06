@@ -4,6 +4,7 @@ import java.nio.charset.Charset
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
+import com.google.inject.Inject
 import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForDirectories, ForRegularFiles}
 import com.hydrangea.android.adb.ls.LsParser
 import com.hydrangea.file.FilePath._
@@ -50,7 +51,7 @@ object Device {
 /**
   * The entry point for accessing devices for ADB (Android Debug Bridge).
   */
-class ADBService(cliProcessFactory: CLIProcessFactory) {
+class ADBService @Inject()(cliProcessFactory: CLIProcessFactory) {
   private[adb] val logger: Logger = LoggerFactory.getLogger(classOf[Device])
 
   def commandLine(device: Device,
