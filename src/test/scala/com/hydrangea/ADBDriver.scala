@@ -4,7 +4,7 @@ import java.io.InputStream
 
 import com.google.inject.Guice
 import com.hydrangea.android.adb.{ADBService, Device}
-import com.hydrangea.file.{AbsolutePath, AndroidLocation, FileSystemService}
+import com.hydrangea.file.{AbsolutePath, AndroidFileData, AndroidLocation, FileSystemService}
 import com.hydrangea.music.tagger.TikaTagger
 import com.hydrangea.music.track.Tag
 import com.hydrangea.process.DefaultCLIProcessFactoryModule
@@ -37,6 +37,14 @@ class ADBDriver extends AnyFlatSpec {
     val srcLocation: AndroidLocation = AndroidLocation(device, srcPath)
     fileSystemService.copyFromDevice(srcLocation, "F:\\output.mp3".toLocalWindowsPath)
     System.out.println("Copied in " + (System.currentTimeMillis() - start) + "ms")
+  }
+
+  it should "list a directory" in {
+    val adbService = injector.instance[ADBService]
+    val device: Device = adbService.firstDevice
+    val listing: Seq[AndroidFileData] =
+      adbService.commandLine(device).list("/storage/self/primary/test/dir-1".toUnixPath)
+    println(listing.mkString("\n"))
   }
 }
 

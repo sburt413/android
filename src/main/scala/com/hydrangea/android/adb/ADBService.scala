@@ -5,10 +5,17 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import com.google.inject.Inject
-import com.hydrangea.android.adb.find.{FindDepth, FindOption, ForDirectories, ForRegularFiles}
+import com.hydrangea.android.adb.find.{FindOption, ForDirectories, ForRegularFiles}
 import com.hydrangea.android.adb.ls.LsParser
 import com.hydrangea.file.FilePath._
-import com.hydrangea.file.{AbsolutePath, AndroidDirectoryData, AndroidFileData, AndroidLocation, AndroidRegularFileData}
+import com.hydrangea.file.{
+  AbsolutePath,
+  AndroidDirectoryData,
+  AndroidFileData,
+  AndroidLocation,
+  AndroidRegularFileData,
+  DirectoryFileData
+}
 import com.hydrangea.process.{CLIProcess, CLIProcessFactory, Timeout}
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -298,15 +305,26 @@ class ADBCommandLine(cliProcessFactory: CLIProcessFactory, val device: Device, t
     * @return all files under the given path
     */
   def scan(path: AbsolutePath): Seq[AndroidFileData] = {
-    val directoryPaths: Seq[AbsolutePath] = findDirectories(path, FindDepth(1))
-    directoryPaths.indices.flatMap { index =>
-      val directoryPath: AbsolutePath = directoryPaths(index)
-      if ((index + 1) % 10 == 0 || index == 0 || index == directoryPaths.size - 1) {
-        logger.info(s"Scanning: ${index + 1}/${directoryPaths.size}")
+    val rootDirectory: Seq[AndroidFileData] = stat(path).toSeq
+
+    val rootDirectoryContents: Seq[AndroidFileData] = list(path)
+    val directories: Seq[AndroidFileData] =
+      rootDirectoryContents.flatMap({
+        case d: DirectoryFileData => Some(d).filter(!_.location.path.equals(path))
+        case _                    => None
+      })
+
+    val directoryForest: Seq[AndroidFileData] =
+      directories.indices.flatMap { index =>
+        val directory: AndroidFileData = directories(index)
+        if ((index + 1) % 10 == 0 || index == 0 || index == directories.size - 1) {
+          logger.info(s"Scanning: ${index + 1}/${directories.size}")
+        }
+
+        listRecursive(directory.location.path)
       }
 
-      listRecursive(directoryPath)
-    }
+    rootDirectory ++ rootDirectoryContents ++ directoryForest
   }
 
   /**
