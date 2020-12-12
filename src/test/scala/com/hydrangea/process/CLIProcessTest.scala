@@ -1,7 +1,6 @@
 package com.hydrangea.process
 
-import java.nio.charset.Charset
-
+import com.hydrangea.android.adb.ADBCommandLine
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 
@@ -13,8 +12,8 @@ class CLIProcessTest extends AnyFlatSpec {
     val process: CLIProcess = factory.create(args, expectedExitCodes = Some(Set(0, 1)))
     val (stdout, stderr) = process.createStreamHandlers()
 
-    val stdoutReader = new ReaderThread(stdout, Charset.defaultCharset())
-    val stderrReader = new ReaderThread(stderr, Charset.defaultCharset())
+    val stdoutReader = new ReaderThread(stdout, ADBCommandLine.UTF_8)
+    val stderrReader = new ReaderThread(stderr, ADBCommandLine.UTF_8)
 
     stdoutReader.start()
     stderrReader.start()

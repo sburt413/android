@@ -28,11 +28,11 @@ class ADBServiceTest extends AnyFlatSpec {
     val processes: ListBuffer[MockCLIProcess] =
       ListBuffer(
         MockCLIProcess("adb -s 123456789 shell stat -c '%Y %F' '/etc/hosts'",
-                       "1230735600 regular file".getBytes(Charset.defaultCharset())))
+                       "1230735600 regular file".getBytes(ADBCommandLine.UTF_8)))
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, Charset.defaultCharset())
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/etc/hosts".toUnixPath
     val result: Option[AndroidFileData] = commandLine.stat(path)
@@ -50,11 +50,11 @@ class ADBServiceTest extends AnyFlatSpec {
     val processes: ListBuffer[MockCLIProcess] =
       ListBuffer(
         MockCLIProcess("adb -s 123456789 shell stat -c '%Y %F' '/etc'",
-                       "1230735600 directory".getBytes(Charset.defaultCharset())))
+                       "1230735600 directory".getBytes(ADBCommandLine.UTF_8)))
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, Charset.defaultCharset())
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
 
     // Trailing / gets sanitized
     val path: AbsolutePath = "/etc/".toUnixPath
@@ -79,14 +79,14 @@ class ADBServiceTest extends AnyFlatSpec {
         |drwxrwx--x 2 root sdcard_rw 3488 2018-10-06 07:00:00.000000000 -0500 dir-1-3/
         |-rw-rw---- 1 root sdcard_rw   27 2019-11-06 08:00:00.000000000 -0500 dir-1-listing.txt
         |-rw-rw---- 1 root sdcard_rw 5028 2020-12-06 09:00:00.000000000 -0500 info-1.txt""".stripMargin.getBytes(
-        Charset.defaultCharset())
+        ADBCommandLine.UTF_8)
 
     val processes: ListBuffer[MockCLIProcess] =
       ListBuffer(MockCLIProcess("adb -s 123456789 shell ls -pla --full-time '/test/dir-1'", stdout))
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, Charset.defaultCharset())
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
 
     val result: Seq[AndroidFileData] = commandLine.list("/test/dir-1".toUnixPath)
 
@@ -157,14 +157,14 @@ class ADBServiceTest extends AnyFlatSpec {
         |drwxrwx--x 2 root sdcard_rw 3488 2020-12-05 08:00:00.000000000 -0500 ./
         |drwxrwx--x 4 root sdcard_rw 3488 2020-12-05 08:00:00.000000000 -0500 ../
         |-rw-rw---- 1 root sdcard_rw 5028 2020-12-06 09:00:00.000000000 -0500 info-2.txt
-        |""".stripMargin.getBytes(Charset.defaultCharset())
+        |""".stripMargin.getBytes(ADBCommandLine.UTF_8)
 
     val processes: ListBuffer[MockCLIProcess] =
       ListBuffer(MockCLIProcess("adb -s 123456789 shell ls -Rpla --full-time '/test'", stdout))
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, Charset.defaultCharset())
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
 
     val results: Seq[AndroidFileData] = commandLine.listRecursive("/test".toUnixPath)
 
@@ -218,14 +218,14 @@ class ADBServiceTest extends AnyFlatSpec {
     val stdout: Array[Byte] =
       """/test/dir-1/dir-1-2/dir-1-2-1/info-1-2-1.txt
         |/test/dir-1/info-1.txt
-        |/test/dir-2/info-2.txt""".stripMargin.getBytes(Charset.defaultCharset())
+        |/test/dir-2/info-2.txt""".stripMargin.getBytes(ADBCommandLine.UTF_8)
 
     val processes: ListBuffer[MockCLIProcess] =
       ListBuffer(MockCLIProcess("adb -s 123456789 shell find '/test' -name info-\\*.txt", stdout))
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, Charset.defaultCharset())
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/test".toUnixPath
     val results: Seq[AbsolutePath] = commandLine.find(path, ByName("info-*.txt"))
@@ -240,14 +240,14 @@ class ADBServiceTest extends AnyFlatSpec {
     val stdout: Array[Byte] =
       """/test/dir-1/dir-1-2/dir-1-2-1/info-1-2-1.txt
         |/test/dir-1/info-1.txt
-        |/test/dir-2/info-2.txt""".stripMargin.getBytes(Charset.defaultCharset())
+        |/test/dir-2/info-2.txt""".stripMargin.getBytes(ADBCommandLine.UTF_8)
 
     val processes: ListBuffer[MockCLIProcess] =
       ListBuffer(MockCLIProcess("adb -s 123456789 shell find '/test' -type f", stdout))
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, Charset.defaultCharset())
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/test".toUnixPath
     val results: Seq[AbsolutePath] = commandLine.findRegularFiles(path)
@@ -262,14 +262,14 @@ class ADBServiceTest extends AnyFlatSpec {
     val stdout: Array[Byte] =
       """/test/dir-1/dir-1-2/dir-1-2-1/info-1-2-1.txt
         |/test/dir-1/info-1.txt
-        |/test/dir-2/info-2.txt""".stripMargin.getBytes(Charset.defaultCharset())
+        |/test/dir-2/info-2.txt""".stripMargin.getBytes(ADBCommandLine.UTF_8)
 
     val processes: ListBuffer[MockCLIProcess] =
       ListBuffer(MockCLIProcess("adb -s 123456789 shell find '/test' -type d", stdout))
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, Charset.defaultCharset())
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/test".toUnixPath
     val results: Seq[AbsolutePath] = commandLine.findDirectories(path)
@@ -285,12 +285,12 @@ class ADBServiceTest extends AnyFlatSpec {
       ListBuffer(
         MockCLIProcess(
           "adb -s 123456789 shell ls -Rplart --full-time \"/test\" | grep -v '\\.\\./' | tail -n 1",
-          "drwxrwx--x 2 root sdcard_rw 3488 2020-12-06 09:00:00.000000000 -0500 ./".getBytes(Charset.defaultCharset())
+          "drwxrwx--x 2 root sdcard_rw 3488 2020-12-06 09:00:00.000000000 -0500 ./".getBytes(ADBCommandLine.UTF_8)
         ))
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, Charset.defaultCharset())
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/test".toUnixPath
     val results: Option[Instant] = commandLine.mostRecentUpdate(path)
@@ -303,12 +303,12 @@ class ADBServiceTest extends AnyFlatSpec {
       ListBuffer(
         MockCLIProcess(
           "adb -s 123456789 shell sha1sum '/test/dir-1/dir-1-listing.txt'",
-          "256540527d5b9602387cbcc593caeb52c4ef1ff0  /test/dir-1/dir-1-listing.txt".getBytes(Charset.defaultCharset())
+          "256540527d5b9602387cbcc593caeb52c4ef1ff0  /test/dir-1/dir-1-listing.txt".getBytes(ADBCommandLine.UTF_8)
         ))
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, Charset.defaultCharset())
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/test/dir-1/dir-1-listing.txt".toUnixPath
     val sha1: String = commandLine.sha1sum(path)
@@ -317,7 +317,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
   it should "run scan" in {
     val statRoot = MockCLIProcess("adb -s 123456789 shell stat -c '%Y %F' '/test'",
-                                  "1607173200 directory".getBytes(Charset.defaultCharset()))
+                                  "1607173200 directory".getBytes(ADBCommandLine.UTF_8))
 
     val listStdout: Array[Byte] =
       """total 12
@@ -326,7 +326,7 @@ class ADBServiceTest extends AnyFlatSpec {
         |drwxrwx--x  5 root sdcard_rw 3488 2020-12-06 08:00:00.000000000 -0500 dir-1/
         |drwxrwx--x  2 root sdcard_rw 3488 2020-12-07 08:00:00.000000000 -0500 dir-2/
         |-rw-rw----  1 root sdcard_rw   14 2020-12-08 08:00:00.000000000 -0500 root.txt
-        |""".stripMargin.getBytes(Charset.defaultCharset())
+        |""".stripMargin.getBytes(ADBCommandLine.UTF_8)
     val listRoot = MockCLIProcess("adb -s 123456789 shell ls -pla --full-time '/test'", listStdout)
 
     val recursiveListDir1Stdout: Array[Byte] =
@@ -364,7 +364,7 @@ class ADBServiceTest extends AnyFlatSpec {
         |total 6
         |drwxrwx--x 2 root sdcard_rw 3488 2020-12-08 08:00:00.000000000 -0500 ./
         |drwxrwx--x 5 root sdcard_rw 3488 2020-12-06 08:00:00.000000000 -0500 ../
-        |""".stripMargin.getBytes(Charset.defaultCharset())
+        |""".stripMargin.getBytes(ADBCommandLine.UTF_8)
     val recursiveListDir1 =
       MockCLIProcess("adb -s 123456789 shell ls -Rpla --full-time '/test/dir-1'", recursiveListDir1Stdout)
 
@@ -374,7 +374,7 @@ class ADBServiceTest extends AnyFlatSpec {
         |drwxrwx--x 2 root sdcard_rw 3488 2020-12-07 08:00:00.000000000 -0500 ./
         |drwxrwx--x 4 root sdcard_rw 3488 2020-12-05 08:00:00.000000000 -0500 ../
         |-rw-rw---- 1 root sdcard_rw 5028 2020-12-06 08:00:00.000000000 -0500 info-2.txt""".stripMargin.getBytes(
-        Charset.defaultCharset())
+        ADBCommandLine.UTF_8)
     val recursiveListDir2 =
       MockCLIProcess("adb -s 123456789 shell ls -Rpla --full-time '/test/dir-2'", recursiveListDir2Stdout)
 
@@ -382,7 +382,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, Charset.defaultCharset())
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
 
     val results: Seq[AndroidFileData] = commandLine.scan("/test".toUnixPath)
 
@@ -452,14 +452,14 @@ class ADBServiceTest extends AnyFlatSpec {
   }
 
   it should "transfer files" in {
-    val expectedOutput: Array[Byte] = RandomStringUtils.randomAlphanumeric(1000).getBytes(Charset.defaultCharset())
+    val expectedOutput: Array[Byte] = RandomStringUtils.randomAlphanumeric(1000).getBytes(ADBCommandLine.UTF_8)
     val transferCommand = MockCLIProcess("adb -s 123456789 exec-out cat \"/test\"", expectedOutput)
 
     val processes: ListBuffer[MockCLIProcess] = ListBuffer(transferCommand)
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, Charset.defaultCharset())
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
 
     val transferProcess: CLIProcess = commandLine.transferProcess("/test".toUnixPath)
     val (stdout, stderr) = transferProcess.createStreamHandlers()

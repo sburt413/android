@@ -34,7 +34,7 @@ case class Device(serial: String) {
     */
   def commandline(cliProcessFactory: CLIProcessFactory,
                   timeout: Timeout = Device.defaultTimeout,
-                  charset: Charset = Charset.defaultCharset()): ADBCommandLine =
+                  charset: Charset = ADBCommandLine.UTF_8): ADBCommandLine =
     new ADBCommandLine(cliProcessFactory, this, timeout, charset)
 
   /**
@@ -47,7 +47,7 @@ case class Device(serial: String) {
     */
   def withCommandLine[A](cliProcessFactory: CLIProcessFactory,
                          timeout: Timeout = Device.defaultTimeout,
-                         charset: Charset = Charset.defaultCharset())(fn: ADBCommandLine => A): A =
+                         charset: Charset = ADBCommandLine.UTF_8)(fn: ADBCommandLine => A): A =
     fn(new ADBCommandLine(cliProcessFactory, this, timeout, charset))
 }
 
@@ -63,7 +63,7 @@ class ADBService @Inject()(cliProcessFactory: CLIProcessFactory) {
 
   def commandLine(device: Device,
                   timeout: Timeout = Device.defaultTimeout,
-                  charset: Charset = Charset.defaultCharset()): ADBCommandLine =
+                  charset: Charset = ADBCommandLine.UTF_8): ADBCommandLine =
     new ADBCommandLine(cliProcessFactory, device, timeout, charset)
 
   /**
@@ -76,14 +76,14 @@ class ADBService @Inject()(cliProcessFactory: CLIProcessFactory) {
     */
   def withCommandLine[A](device: Device,
                          timeout: Timeout = Device.defaultTimeout,
-                         charset: Charset = Charset.defaultCharset())(fn: ADBCommandLine => A): A =
+                         charset: Charset = ADBCommandLine.UTF_8)(fn: ADBCommandLine => A): A =
     fn(commandLine(device, timeout, charset))
 
   def devices: Seq[Device] = {
     val (_, stdout, _) =
       cliProcessFactory
         .create(Seq("adb", "devices"), Some(Timeout(10, TimeUnit.SECONDS)))
-        .runAndParse(Charset.defaultCharset())
+        .runAndParse(ADBCommandLine.UTF_8)
 
     // Skip 'List of devices attached'
     stdout.tail.map(_.split("\\s+")(0)).map(serial => Device(serial))
@@ -366,5 +366,6 @@ class ADBCommandLine(cliProcessFactory: CLIProcessFactory, val device: Device, t
 object ADBCommandLine {
   private[adb] val logger: Logger = LoggerFactory.getLogger(classOf[ADBCommandLine])
 
+  val UTF_8: java.nio.charset.Charset = Charset.forName("UTF-8")
   val UTF_16: java.nio.charset.Charset = Charset.forName("UTF-16")
 }

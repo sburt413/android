@@ -3,7 +3,7 @@ package com.hydrangea
 import java.io.InputStream
 
 import com.google.inject.Guice
-import com.hydrangea.android.adb.{ADBService, Device}
+import com.hydrangea.android.adb.{ADBCommandLine, ADBService, Device}
 import com.hydrangea.file.{AbsolutePath, AndroidFileData, AndroidLocation, FileSystemService}
 import com.hydrangea.music.tagger.TikaTagger
 import com.hydrangea.music.track.Tag
@@ -28,7 +28,7 @@ class ADBDriver extends AnyFlatSpec {
 
     val device: Device = adbService.firstDevice
 
-    val location: AndroidLocation = AndroidLocation(device, filePath)
+    val location = AndroidLocation(device, filePath)
     val tag: Tag = tagger.tag(location)
     println(s"Parsed tag: $tag")
 
@@ -45,6 +45,16 @@ class ADBDriver extends AnyFlatSpec {
     val listing: Seq[AndroidFileData] =
       adbService.commandLine(device).list("/storage/self/primary/test/dir-1".toUnixPath)
     println(listing.mkString("\n"))
+  }
+
+  "Driver" should "scan music" in {
+    val filePath: AbsolutePath =
+      "/storage/0123-4567/Music".toAbsolutePath.getOrElse(throw new IllegalStateException("Illegal Path"))
+
+    val adbService = injector.instance[ADBService]
+    val device: Device = adbService.firstDevice
+    val files = adbService.commandLine(device, charset = ADBCommandLine.UTF_8).scan(filePath)
+    println(s"Files: \n${files.mkString("\n")}")
   }
 }
 
