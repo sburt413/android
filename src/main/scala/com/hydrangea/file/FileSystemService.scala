@@ -2,6 +2,7 @@ package com.hydrangea.file
 
 import java.io.{InputStream, OutputStream}
 import java.nio.file.{Files, Path}
+import java.time.Instant
 
 import com.google.inject.Inject
 import com.hydrangea.DisjunctionOps._
@@ -9,6 +10,9 @@ import com.hydrangea.android.adb.ADBCommandLine
 import com.hydrangea.process.{CLIProcess, CLIProcessFactory}
 import org.apache.commons.io.IOUtils
 import scalaz.Disjunction
+
+import scala.jdk.OptionConverters._
+import scala.jdk.StreamConverters._
 
 class FileSystemService @Inject()(cliProcessFactory: CLIProcessFactory) {
   import FileSystemService._
@@ -50,6 +54,59 @@ class FileSystemService @Inject()(cliProcessFactory: CLIProcessFactory) {
       System.out.println("Writing to: " + targetJavaPath)
       IOUtils.copy(inputStream, outputStream)
     }
+
+  def write(location: FileLocation, data: Array[Byte]): Unit =
+    location match {
+      case LocalFileLocation(path)       => Files.write(path.toJavaPath, data)
+      case AndroidLocation(device, path) => ???
+    }
+
+  def listLocal(path: AbsolutePath): Seq[FileData] =
+    Files
+      .list(path.toJavaPath)
+      .toScala(LazyList)
+      .flatMap(javaPath => LocalFileData(javaPath))
+
+  def list(location: FileLocation): Seq[FileData] =
+    location match {
+      case LocalFileLocation(path)       => listLocal(path)
+      case AndroidLocation(device, path) => device.commandline(cliProcessFactory).list(path)
+    }
+
+  def scan(location: FileLocation): Seq[FileData] =
+    location match {
+      case LocalFileLocation(path)       => scanLocal(path)
+      case AndroidLocation(device, path) => device.commandline(cliProcessFactory).scan(path)
+    }
+
+  def scanLocal(path: AbsolutePath): Seq[LocalFileData] =
+    Files
+      .walk(path.toJavaPath)
+      .toScala(LazyList)
+      .flatMap(javaPath => LocalFileData(javaPath))
+
+  def fileCount(location: FileLocation): Int =
+    location match {
+      case LocalFileLocation(path)       => countLocalFiles(path)
+      case AndroidLocation(device, path) => device.commandline(cliProcessFactory).countFiles(path)
+    }
+
+  private def countLocalFiles(path: AbsolutePath): Int =
+    Files.list(path.toJavaPath).filter(Files.isRegularFile(_)).count().toInt
+
+  def mostRecentUpdate(location: FileLocation): Option[Instant] =
+    location match {
+      case LocalFileLocation(path)       => mostRecentLocalUpdate(path)
+      case AndroidLocation(device, path) => device.commandline(cliProcessFactory).mostRecentUpdate(path)
+    }
+
+  private def mostRecentLocalUpdate(path: AbsolutePath): Option[Instant] =
+    Files
+      .list(path.toJavaPath)
+      .map(Files.getLastModifiedTime(_))
+      .map(_.toInstant)
+      .max(_.compareTo(_))
+      .toScala
 
   private case class DeviceReader[A](inputStream: InputStream, fn: ReadLambda[A]) extends Thread {
     var output: A = _

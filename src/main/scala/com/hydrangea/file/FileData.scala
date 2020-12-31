@@ -67,6 +67,21 @@ sealed trait LocalFileData extends FileData {
     }
 }
 
+object LocalFileData {
+  def apply(javaPath: Path): Option[LocalFileData] = {
+    val lastModified: Instant = Files.getLastModifiedTime(javaPath).toInstant
+    LocalFileLocation(javaPath).flatMap(location => {
+      if (Files.isDirectory(javaPath)) {
+        Some(LocalDirectoryData(location, lastModified))
+      } else if (Files.isRegularFile(javaPath)) {
+        Some(LocalRegularFileData(location, lastModified))
+      } else {
+        None
+      }
+    })
+  }
+}
+
 sealed trait AndroidFileData extends FileData {
   def location: AndroidLocation
 

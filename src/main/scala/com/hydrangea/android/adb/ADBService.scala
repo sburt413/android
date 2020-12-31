@@ -4,6 +4,8 @@ import java.nio.charset.Charset
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
+import argonaut.Argonaut._
+import argonaut._
 import com.google.inject.Inject
 import com.hydrangea.android.adb.find.{FindOption, ForDirectories, ForRegularFiles}
 import com.hydrangea.android.adb.ls.LsParser
@@ -53,6 +55,8 @@ case class Device(serial: String) {
 
 object Device {
   val defaultTimeout: Timeout = Timeout(10, TimeUnit.MINUTES)
+
+  implicit val codec: CodecJson[Device] = casecodec1(Device.apply, Device.unapply)("serial")
 }
 
 /**
@@ -351,6 +355,14 @@ class ADBCommandLine(cliProcessFactory: CLIProcessFactory, val device: Device, t
           mostRecentUpdate
       })
   }
+
+  /**
+    * Returns the total number of regular files that exist under the given path.  This counts all ancestor files.
+    *
+    * @param path the path to count regularly files under
+    * @return the number of regular files that are ancestors under the given path
+    */
+  def countFiles(path: AbsolutePath): Int = find(path, ForRegularFiles).size
 
   /**
     * Creates a [[Process]] to transfer the raw data from the given path.  The caller will then attach to the

@@ -143,4 +143,17 @@ class FilePathTest extends AnyFlatSpec {
         .getOrElse(throw new AssertionError("Could not decode RelativePath"))
     relativePath should equal(RelativePath(Seq("apache", "tomcat", "logs")))
   }
+
+  it should "determine subpaths" in {
+    val usrPath = RelativePath(Seq("usr"))
+    val usrBinPath = RelativePath(Seq("usr", "bin"))
+    val usrLocalBinPath = RelativePath(Seq("usr", "local", "bin"))
+
+    usrBinPath.startsWith(usrPath) should equal(true)
+    usrBinPath.startsWith(usrBinPath) should equal(true)
+    usrLocalBinPath.startsWith(usrPath) should equal(true)
+
+    usrBinPath.startsWith(usrLocalBinPath) should equal(false)
+    usrPath.startsWith(usrLocalBinPath) should equal(false)
+  }
 }

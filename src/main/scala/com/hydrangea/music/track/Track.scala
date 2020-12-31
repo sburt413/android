@@ -2,6 +2,9 @@ package com.hydrangea.music.track
 
 import java.time.Instant
 
+import argonaut.Argonaut._
+import argonaut._
+import com.hydrangea.codec.Codecs._
 import com.hydrangea.file.AbsolutePath
 
 /**
@@ -33,3 +36,19 @@ case class Tag(title: String,
                trackCount: Option[Int],
                discNumber: Option[Int],
                discCount: Option[Int])
+
+object Track {
+  implicit def codec: CodecJson[Track] = casecodec4(Track.apply, Track.unapply)("hash", "path", "lastModified", "tag")
+}
+
+object Tag {
+  implicit def codec: CodecJson[Tag] =
+    casecodec8(Tag.apply, Tag.unapply)("title",
+                                       "album",
+                                       "artist",
+                                       "year",
+                                       "trackNumber",
+                                       "trackCount",
+                                       "discNumber",
+                                       "discCount")
+}

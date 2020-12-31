@@ -44,6 +44,9 @@ case class AbsolutePath(base: PathBase, segments: Seq[String]) {
   def ++(relativePath: RelativePath): AbsolutePath =
     copy(segments = segments ++ relativePath.segments)
 
+  def ++(newSegments: String*): AbsolutePath =
+    copy(segments = segments ++ newSegments)
+
   def rebase(from: AbsolutePath, to: AbsolutePath): AbsolutePath =
     to ++ this.relativePath(from)
 
@@ -88,6 +91,9 @@ object AbsolutePath {
       None
     }
 
+  def apply(javaPath: Path): Option[AbsolutePath] =
+    AbsolutePath(javaPath.toAbsolutePath.toString)
+
   def localWindowsPath(driveLetter: Char, segments: List[String]): AbsolutePath =
     AbsolutePath(LocalWindowsPathBase(driveLetter), segments)
 
@@ -105,7 +111,7 @@ object AbsolutePath {
     localWindowsPath(driveLetter, segments)
   }
 
-  def windowsNetworkPath(host: String, segments: List[String]): AbsolutePath =
+  def windowsNetworkPath(host: String, segments: Seq[String]): AbsolutePath =
     AbsolutePath(WindowsNetworkPathBase(host), segments)
 
   def windowsNetworkPath(pathStr: String): AbsolutePath = {
@@ -118,11 +124,11 @@ object AbsolutePath {
 
     val (root, segmentStr) = pathStr.splitAt(splitIndex)
     val host: String = root.substring(2)
-    val segments: List[String] = trim(segmentStr, WindowsSeparator).split(WindowsSeparator).filterNot(_.isBlank).toList
+    val segments: Seq[String] = trim(segmentStr, WindowsSeparator).split(WindowsSeparator).filterNot(_.isBlank)
     windowsNetworkPath(host, segments)
   }
 
-  def unixPath(segments: List[String]): AbsolutePath =
+  def unixPath(segments: Seq[String]): AbsolutePath =
     AbsolutePath(UnixPathBase, segments)
 
   def unixPath(pathStr: String): AbsolutePath = {
@@ -164,6 +170,15 @@ case class RelativePath(segments: Seq[String]) {
       }
     }
   }
+
+  /**
+    * Returns whether this path is equal to or a subpath of the given {{path}}.
+    *
+    * @param path the path to check
+    * @return whether this path is equal to or a subpath of the given {{path}}
+    */
+  def startsWith(path: RelativePath): Boolean =
+    this.segments.startsWith(path.segments)
 
   def isCurrentDirectory: Boolean =
     segments.equals(Seq("."))

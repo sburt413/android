@@ -451,6 +451,30 @@ class ADBServiceTest extends AnyFlatSpec {
       ))
   }
 
+  it should "count regular files" in {
+    val stdout: Array[Byte] =
+      """/test/root.txt
+         |/test/dir-1/info-1.txt
+         |/test/dir-1/dir-1-2/Tempest.html
+         |/test/dir-1/dir-1-2/dir-1-2-1/info-1-2-1.txt
+         |/test/dir-1/dir-1-2/Hamlet.txt
+         |/test/dir-1/dir-1-2/JuliusCaesar.txt
+         |/test/dir-1/dir-1-listing.txt
+         |/test/dir-2/info-2.txt
+         |""".stripMargin.getBytes(ADBCommandLine.UTF_8)
+
+    val processes: ListBuffer[MockCLIProcess] =
+      ListBuffer(MockCLIProcess("adb -s 123456789 shell find '/test' -type f", stdout))
+
+    val fakeDevice: Device = Device("123456789")
+    val commandLine: ADBCommandLine =
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+
+    val path: AbsolutePath = "/test".toUnixPath
+    val fileCount: Int = commandLine.countFiles(path)
+    fileCount should equal(8)
+  }
+
   it should "transfer files" in {
     val expectedOutput: Array[Byte] = RandomStringUtils.randomAlphanumeric(1000).getBytes(ADBCommandLine.UTF_8)
     val transferCommand = MockCLIProcess("adb -s 123456789 exec-out cat \"/test\"", expectedOutput)
