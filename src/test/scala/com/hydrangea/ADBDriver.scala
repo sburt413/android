@@ -4,7 +4,13 @@ import java.io.InputStream
 
 import com.google.inject.Guice
 import com.hydrangea.android.adb.{ADBCommandLine, ADBService, Device}
-import com.hydrangea.file.{AbsolutePath, AndroidFileData, AndroidLocation, FileSystemService}
+import com.hydrangea.file.{
+  AbsolutePath,
+  AndroidFileData,
+  AndroidLocation,
+  DefaultFileSystemServiceModule,
+  FileSystemService
+}
 import com.hydrangea.music.tagger.TikaTagger
 import com.hydrangea.music.track.Tag
 import com.hydrangea.process.DefaultCLIProcessFactoryModule
@@ -15,7 +21,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 class ADBDriver extends AnyFlatSpec {
   import com.hydrangea.file.FilePath._
 
-  val injector = Guice.createInjector(DefaultCLIProcessFactoryModule)
+  val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, DefaultFileSystemServiceModule)
 
   "Driver" should "run" in {
     val filePath: AbsolutePath =

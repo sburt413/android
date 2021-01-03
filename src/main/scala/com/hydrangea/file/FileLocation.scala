@@ -6,6 +6,8 @@ import argonaut.Argonaut._
 import argonaut._
 import com.hydrangea.android.adb.Device
 
+import scala.reflect.ClassTag
+
 /**
   * A data structure containing enough information to retrieve a file.
   */
@@ -15,6 +17,26 @@ sealed trait FileLocation {
   def path: AbsolutePath
 
   def ++(relativePath: RelativePath): thisType
+
+  def parentLocation: thisType
+
+  def startsWith(location: FileLocation): Boolean =
+    this.getClass.equals(location.getClass) && this.path.startsWith(location.path)
+
+  /**
+    * Downcasts this [[FileLocation]] if it is the given type.
+    *
+    * @tparam L the type of [[FileLocation]] this is expected to be
+    * @return [[Some]] [[FileLocation]] of type L; otherwise [[None]]
+    */
+  def to[L <: FileLocation](implicit classTag: ClassTag[L]): Option[L] =
+    this match {
+      case f: L => Some(f)
+      case _    => None
+    }
+
+  def castOrThrow[L <: FileLocation](implicit classTag: ClassTag[L]): L =
+    to[L].getOrElse(throw new IllegalStateException(s"$this is not expected type of ${classTag.runtimeClass.getName}"))
 }
 
 object FileLocation {
@@ -49,6 +71,8 @@ case class LocalFileLocation(path: AbsolutePath) extends FileLocation {
   override def ++(relativePath: RelativePath): LocalFileLocation =
     LocalFileLocation(path ++ relativePath)
 
+  override def parentLocation: LocalFileLocation = LocalFileLocation(path.parentPath)
+
   def toJavaPath: Path = Path.of(path.raw)
 }
 
@@ -77,6 +101,8 @@ case class AndroidLocation(device: Device, path: AbsolutePath) extends FileLocat
 
   override def ++(relativePath: RelativePath): AndroidLocation =
     AndroidLocation(device, path ++ relativePath)
+
+  override def parentLocation: AndroidLocation = AndroidLocation(device, path.parentPath)
 }
 
 object AndroidLocation {

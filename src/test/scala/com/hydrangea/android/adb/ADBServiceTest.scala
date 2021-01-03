@@ -4,13 +4,11 @@ import java.io.{ByteArrayInputStream, InputStream}
 import java.nio.charset.Charset
 import java.time.Instant
 
-import com.google.inject.AbstractModule
 import com.hydrangea.android.adb.find.ByName
 import com.hydrangea.file.FilePath._
 import com.hydrangea.file.{AbsolutePath, AndroidDirectoryData, AndroidFileData, AndroidLocation, AndroidRegularFileData}
 import com.hydrangea.process.CLIProcess.WaitFor
 import com.hydrangea.process.{CLIProcess, CLIProcessFactory, ReaderThread, Timeout}
-import net.codingwell.scalaguice.ScalaModule
 import org.apache.commons.io.IOUtils
 import org.apache.commons.lang3.RandomStringUtils
 import org.scalatest.flatspec.AnyFlatSpec
@@ -531,11 +529,5 @@ class TestCLIFactory(processes: ListBuffer[MockCLIProcess]) extends CLIProcessFa
     val values: MockCLIProcess = processes.remove(0)
     args.mkString(" ") should equal(values.expectedCommand)
     new TestCLI(values)
-  }
-}
-
-class TestCLIModule(processes: ListBuffer[MockCLIProcess]) extends AbstractModule with ScalaModule {
-  override def configure(): Unit = {
-    bind[CLIProcessFactory].toInstance(new TestCLIFactory(processes))
   }
 }

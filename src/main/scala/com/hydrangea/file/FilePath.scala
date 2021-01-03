@@ -50,6 +50,10 @@ case class AbsolutePath(base: PathBase, segments: Seq[String]) {
   def rebase(from: AbsolutePath, to: AbsolutePath): AbsolutePath =
     to ++ this.relativePath(from)
 
+  def parentPath: AbsolutePath = AbsolutePath(base, segments.dropRight(1))
+
+  def startsWith(path: AbsolutePath): Boolean = this.base.equals(path.base) && this.segments.startsWith(path.segments)
+
   def toJavaPath: Path = Paths.get(raw)
 
   override def toString: String = raw

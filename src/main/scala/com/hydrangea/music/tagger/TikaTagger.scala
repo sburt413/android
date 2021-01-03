@@ -40,7 +40,7 @@ class TikaTagger @Inject()(fileSystemService: FileSystemService) {
     val metadata = new Metadata
 
     val start: Long = System.currentTimeMillis()
-    fileSystemService.readFromDevice(androidLocation) { inputStream =>
+    fileSystemService.read(androidLocation) { inputStream =>
       parser.parse(inputStream, handler, metadata, context)
     }
 
