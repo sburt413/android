@@ -1,10 +1,9 @@
 package com.hydrangea.music.tagger
 
 import java.io.InputStream
-import java.nio.file.{Files, Path}
 
 import com.google.inject.Inject
-import com.hydrangea.file.{AndroidLocation, FileLocation, FileSystemService, LocalFileLocation}
+import com.hydrangea.file.{FileLocation, FileSystemService}
 import com.hydrangea.music.library.TrackRecord
 import com.hydrangea.music.track.Tag
 import org.apache.tika.metadata.Metadata
@@ -26,21 +25,15 @@ class TikaTagger @Inject()(fileSystemService: FileSystemService) {
     }
   }
 
-  def tag(location: FileLocation): Tag =
-    location match {
-      case localLocation: LocalFileLocation => tag(localLocation.toJavaPath)
-      case androidLocation: AndroidLocation => tagAndroid(androidLocation)
-    }
-
-  private def tagAndroid(androidLocation: AndroidLocation): Tag = {
-    logger.trace(s"Extracting tag for location ($androidLocation).")
+  def tag(location: FileLocation): Tag = {
+    logger.trace(s"Extracting tag for location ($location).")
     val handler = new DefaultHandler
     val context = new ParseContext
     val parser = new Mp3Parser
     val metadata = new Metadata
 
     val start: Long = System.currentTimeMillis()
-    fileSystemService.read(androidLocation) { inputStream =>
+    fileSystemService.read(location) { inputStream =>
       parser.parse(inputStream, handler, metadata, context)
     }
 
@@ -48,16 +41,6 @@ class TikaTagger @Inject()(fileSystemService: FileSystemService) {
     val parsedTag: Tag = fromMetadata(metadata)
     logger.debug(s"Tag for location ($parsedTag) is: $parsedTag")
     parsedTag
-  }
-
-  private def tag(javaPath: Path): Tag = {
-    val handler = new DefaultHandler
-    val context = new ParseContext
-    val parser = new Mp3Parser
-
-    val metadata = new Metadata
-    parser.parse(Files.newInputStream(javaPath), handler, metadata, context)
-    fromMetadata(metadata)
   }
 
   private def fromMetadata(metadata: Metadata): Tag = {
@@ -86,7 +69,4 @@ class TikaTagger @Inject()(fileSystemService: FileSystemService) {
 
 object TikaTagger {
   private val logger: Logger = org.slf4j.LoggerFactory.getLogger(TikaTagger.getClass)
-
-  def apply(fileSystemService: FileSystemService): TikaTagger =
-    new TikaTagger(fileSystemService)
 }

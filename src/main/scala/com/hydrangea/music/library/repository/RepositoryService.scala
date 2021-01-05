@@ -19,7 +19,7 @@ class RepositoryService @Inject()(trackService: TrackService) {
         .toScala(LazyList)
         .flatMap(_.toLocalRegularFileData)
         .filter(FileData.mp3Filter)
-        .map(trackService.getLocalTrack)
+        .map(trackService.readTrack)
         .map(TrackRecord(_, Instant.now()))
         .toList
 

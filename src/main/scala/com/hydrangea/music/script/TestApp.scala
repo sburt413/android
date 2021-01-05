@@ -49,7 +49,7 @@ object TestApp {
           if (file.getFileName.toString.endsWith(".mp3")) {
             val fileData: LocalRegularFileData =
               file.toLocalRegularFileData.getOrElse(throw new IllegalArgumentException("Not a regular file"))
-            val track: Track = trackService.getLocalTrack(fileData)
+            val track: Track = trackService.readTrack(fileData)
             println(s"Record for path ($file): $track")
           }
 
