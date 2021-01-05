@@ -5,8 +5,10 @@ import java.time.Instant
 import com.google.inject.Inject
 import com.hydrangea.file.{DirectoryFileData, FileLocation, FileSystemService}
 
+import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
+// TODO: Find deleted entries
 class MusicRepositoryScheduler @Inject()(fileSystemService: FileSystemService) {
   def createSchedule[L <: FileLocation](source: MusicRepository[L])(implicit classTag: ClassTag[L]): Schedule[L] =
     updateSchedule(source, Schedule(Nil))
@@ -35,6 +37,37 @@ class MusicRepositoryScheduler @Inject()(fileSystemService: FileSystemService) {
       }
 
     schedule.merge(newRecords)
+  }
+
+  def splitSchedule[L <: FileLocation](schedule: Schedule[L],
+                                       fileCount: Int,
+                                       marginOfError: Int): (Schedule[L], Schedule[L]) = {
+    @tailrec
+    def take(remaining: List[ScheduleRecord[L]],
+             taken: List[ScheduleRecord[L]],
+             skipped: List[ScheduleRecord[L]],
+             countRemaining: Int): (Schedule[L], Schedule[L]) = {
+      val noFilesNeeded: Boolean = countRemaining - marginOfError <= 0
+      val nothingLeftToTake: Boolean = remaining.isEmpty
+
+      if (noFilesNeeded || nothingLeftToTake) {
+        (Schedule(taken), Schedule(skipped ++ remaining))
+      } else {
+        val current: ScheduleRecord[L] = remaining.head
+
+        // We are guessing that all files are mp3s, that is a good enough for a heuristic
+        val fileCount: Int = fileSystemService.regularFileCount(current.directoryLocation)
+
+        if (fileCount <= countRemaining + marginOfError) {
+          take(remaining.tail, taken :+ current, skipped, countRemaining - fileCount)
+        } else {
+          take(remaining.tail, taken, skipped :+ current, countRemaining)
+        }
+      }
+    }
+
+    val (recordsNeedingUpdates, upToDateRecords) = schedule.records.partition(record => record.needsUpdate)
+    take(recordsNeedingUpdates.sortBy(_.lastIndexed), Nil, upToDateRecords, fileCount)
   }
 }
 
@@ -72,6 +105,8 @@ case class ScheduleRecord[L <: FileLocation](directoryLocation: L,
   * @tparam L      the type of locations for these records
   */
 case class Schedule[L <: FileLocation](records: List[ScheduleRecord[L]]) {
+  def upToDate: Boolean = !records.exists(_.needsUpdate)
+
   def merge(newRecords: Seq[ScheduleRecord[L]]): Schedule[L] = {
     val sourceRecordsByLocation: Map[L, ScheduleRecord[L]] = records.map(r => r.directoryLocation -> r).toMap
     val newRecordsByLocation: Map[L, ScheduleRecord[L]] = newRecords.map(r => r.directoryLocation -> r).toMap
