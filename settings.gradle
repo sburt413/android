@@ -1,3 +1,4 @@
 rootProject.name = 'AndroidUtilities'
 include 'model'
+include 'service'
 

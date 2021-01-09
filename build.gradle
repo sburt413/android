@@ -3,7 +3,7 @@ plugins {
     id 'scala'
 }
 
-group 'com.hydrangea.model'
+group 'com.hydrangea.music'
 version '1.0-SNAPSHOT'
 
 repositories {
@@ -12,4 +12,7 @@ repositories {
 
 dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.12'
+
+    implementation 'org.scala-lang:scala-library:2.13.2'
+    testImplementation 'org.scalatest:scalatest_2.13:3.1.1'
 }

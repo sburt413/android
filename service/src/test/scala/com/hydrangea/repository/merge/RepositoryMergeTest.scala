@@ -239,7 +239,7 @@ class RepositoryMergeTest extends AnyFlatSpec {
         RemoveTrack(manualResolution = false, dannyRemoved),
         AcceptSourceChanges(manualResolution = false, aliceConflict),
         RemoveTrack(manualResolution = false, bobDuplicate),
-        CreateTrack(manualResolution = false, eveAdded),
+        CreateTrack(manualResolution = false, eveAdded)
       )
     merge.resolutions should be(expectedResolutions)
     merge.unresolvedComparisons should be(Symbol("empty"))
