@@ -2,7 +2,7 @@ package com.hydrangea.file
 
 import argonaut.Argonaut._
 import argonaut.JsonObject
-import com.hydrangea.android.adb.Device
+import com.hydrangea.android.Device
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 

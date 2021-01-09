@@ -6,9 +6,9 @@ import java.time.Instant
 
 import com.google.inject.{AbstractModule, Inject}
 import com.hydrangea.DisjunctionOps._
-import com.hydrangea.android.adb.ADBCommandLine
+import com.hydrangea.android.adb.{ADBCommandLine, ADBService}
 import com.hydrangea.file.FileSystemService.ReadLambda
-import com.hydrangea.process.{CLIProcess, CLIProcessFactory}
+import com.hydrangea.process.CLIProcess
 import net.codingwell.scalaguice.ScalaModule
 import org.apache.commons.io.IOUtils
 import scalaz.{-\/, Disjunction, \/-}
@@ -103,7 +103,7 @@ trait FileSystemService {
   def mostRecentUpdate(location: FileLocation): Option[Instant]
 }
 
-class FileSystemServiceImpl @Inject()(cliProcessFactory: CLIProcessFactory) extends FileSystemService {
+class FileSystemServiceImpl @Inject()(adbService: ADBService) extends FileSystemService {
   import FileSystemService._
 
   def read[A](location: FileLocation)(readerFn: ReadLambda[A]): Disjunction[String, A] =
@@ -115,7 +115,7 @@ class FileSystemServiceImpl @Inject()(cliProcessFactory: CLIProcessFactory) exte
     }
 
   private def readFromDevice[A](androidLocation: AndroidLocation)(readStdout: ReadLambda[A]): Disjunction[String, A] = {
-    val commandLine: ADBCommandLine = androidLocation.device.commandline(cliProcessFactory)
+    val commandLine: ADBCommandLine = adbService.commandLine(androidLocation.device)
     val process: CLIProcess = commandLine.transferProcess(androidLocation.path)
     val (stdout, stderr) = process.createStreamHandlers()
 
@@ -145,7 +145,7 @@ class FileSystemServiceImpl @Inject()(cliProcessFactory: CLIProcessFactory) exte
   def list(location: FileLocation): Seq[FileData] =
     location match {
       case LocalFileLocation(path)       => listLocal(path)
-      case AndroidLocation(device, path) => device.commandline(cliProcessFactory).list(path)
+      case AndroidLocation(device, path) => adbService.commandLine(device).list(path)
     }
 
   private def listLocal(path: AbsolutePath): Seq[FileData] =
@@ -157,7 +157,7 @@ class FileSystemServiceImpl @Inject()(cliProcessFactory: CLIProcessFactory) exte
   def scan(location: FileLocation): Seq[FileData] =
     location match {
       case LocalFileLocation(path)       => scanLocal(path)
-      case AndroidLocation(device, path) => device.commandline(cliProcessFactory).scan(path)
+      case AndroidLocation(device, path) => adbService.commandLine(device).scan(path)
     }
 
   private def scanLocal(path: AbsolutePath): Seq[LocalFileData] =
@@ -170,8 +170,8 @@ class FileSystemServiceImpl @Inject()(cliProcessFactory: CLIProcessFactory) exte
     location match {
       case LocalFileLocation(path) => localAncestorLocations(path).flatMap(_.to[L])
       case AndroidLocation(device, path) =>
-        device
-          .commandline(cliProcessFactory)
+        adbService
+          .commandLine(device)
           .find(path)
           .map(ancestorPath => AndroidLocation(device, ancestorPath))
           .flatMap(_.to[L])
@@ -186,7 +186,7 @@ class FileSystemServiceImpl @Inject()(cliProcessFactory: CLIProcessFactory) exte
   def regularFileCount(location: FileLocation): Int =
     location match {
       case LocalFileLocation(path)       => countLocalFiles(path)
-      case AndroidLocation(device, path) => device.commandline(cliProcessFactory).countFiles(path)
+      case AndroidLocation(device, path) => adbService.commandLine(device).countFiles(path)
     }
 
   private def countLocalFiles(path: AbsolutePath): Int =
@@ -195,7 +195,7 @@ class FileSystemServiceImpl @Inject()(cliProcessFactory: CLIProcessFactory) exte
   def mostRecentUpdate(location: FileLocation): Option[Instant] =
     location match {
       case LocalFileLocation(path)       => mostRecentLocalUpdate(path)
-      case AndroidLocation(device, path) => device.commandline(cliProcessFactory).mostRecentUpdate(path)
+      case AndroidLocation(device, path) => adbService.commandLine(device).mostRecentUpdate(path)
     }
 
   private def mostRecentLocalUpdate(path: AbsolutePath): Option[Instant] =

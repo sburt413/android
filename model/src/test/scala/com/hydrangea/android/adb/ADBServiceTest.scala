@@ -4,6 +4,7 @@ import java.io.{ByteArrayInputStream, InputStream}
 import java.nio.charset.Charset
 import java.time.Instant
 
+import com.hydrangea.android.Device
 import com.hydrangea.android.adb.find.ByName
 import com.hydrangea.file.FilePath._
 import com.hydrangea.file.{AbsolutePath, AndroidDirectoryData, AndroidFileData, AndroidLocation, AndroidRegularFileData}
@@ -30,7 +31,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/etc/hosts".toUnixPath
     val result: Option[AndroidFileData] = commandLine.stat(path)
@@ -52,7 +53,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     // Trailing / gets sanitized
     val path: AbsolutePath = "/etc/".toUnixPath
@@ -84,7 +85,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     val result: Seq[AndroidFileData] = commandLine.list("/test/dir-1".toUnixPath)
 
@@ -162,7 +163,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     val results: Seq[AndroidFileData] = commandLine.listRecursive("/test".toUnixPath)
 
@@ -223,7 +224,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/test".toUnixPath
     val results: Seq[AbsolutePath] = commandLine.find(path, ByName("info-*.txt"))
@@ -245,7 +246,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/test".toUnixPath
     val results: Seq[AbsolutePath] = commandLine.findRegularFiles(path)
@@ -267,7 +268,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/test".toUnixPath
     val results: Seq[AbsolutePath] = commandLine.findDirectories(path)
@@ -288,7 +289,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/test".toUnixPath
     val results: Option[Instant] = commandLine.mostRecentUpdate(path)
@@ -306,7 +307,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/test/dir-1/dir-1-listing.txt".toUnixPath
     val sha1: String = commandLine.sha1sum(path)
@@ -380,7 +381,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     val results: Seq[AndroidFileData] = commandLine.scan("/test".toUnixPath)
 
@@ -466,7 +467,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     val path: AbsolutePath = "/test".toUnixPath
     val fileCount: Int = commandLine.countFiles(path)
@@ -481,7 +482,7 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val fakeDevice: Device = Device("123456789")
     val commandLine: ADBCommandLine =
-      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, Device.defaultTimeout, ADBCommandLine.UTF_8)
+      new ADBCommandLine(new TestCLIFactory(processes), fakeDevice, ADBService.defaultTimeout, ADBCommandLine.UTF_8)
 
     val transferProcess: CLIProcess = commandLine.transferProcess("/test".toUnixPath)
     val (stdout, stderr) = transferProcess.createStreamHandlers()

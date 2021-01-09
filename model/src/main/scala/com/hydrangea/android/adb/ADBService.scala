@@ -4,9 +4,8 @@ import java.nio.charset.Charset
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import argonaut.Argonaut._
-import argonaut._
 import com.google.inject.Inject
+import com.hydrangea.android.Device
 import com.hydrangea.android.adb.find.{FindOption, ForDirectories, ForRegularFiles}
 import com.hydrangea.android.adb.ls.LsParser
 import com.hydrangea.file.FilePath._
@@ -22,51 +21,13 @@ import com.hydrangea.process.{CLIProcess, CLIProcessFactory, Timeout}
 import org.slf4j.{Logger, LoggerFactory}
 
 /**
-  * An Android device capable of of communicating with the program via ADB.
-  *
-  * @param serial the serial number of the device
-  */
-case class Device(serial: String) {
-
-  /**
-    * Returns an abstract [[ADBCommandLine]] for communicating with the device.
-    *
-    * @param timeout the timeout for any commands run on the commandline
-    * @return an abstract [[ADBCommandLine]] for communicating with the device
-    */
-  def commandline(cliProcessFactory: CLIProcessFactory,
-                  timeout: Timeout = Device.defaultTimeout,
-                  charset: Charset = ADBCommandLine.UTF_8): ADBCommandLine =
-    new ADBCommandLine(cliProcessFactory, this, timeout, charset)
-
-  /**
-    * Executes the given function, passing it a commandline.
-    *
-    * @param timeout the timeout for any commands run on the commandline
-    * @param fn the function to execute using the terminal
-    * @tparam A the type of output from the function
-    * @return the result of running the function
-    */
-  def withCommandLine[A](cliProcessFactory: CLIProcessFactory,
-                         timeout: Timeout = Device.defaultTimeout,
-                         charset: Charset = ADBCommandLine.UTF_8)(fn: ADBCommandLine => A): A =
-    fn(new ADBCommandLine(cliProcessFactory, this, timeout, charset))
-}
-
-object Device {
-  val defaultTimeout: Timeout = Timeout(10, TimeUnit.MINUTES)
-
-  implicit val codec: CodecJson[Device] = casecodec1(Device.apply, Device.unapply)("serial")
-}
-
-/**
   * The entry point for accessing devices for ADB (Android Debug Bridge).
   */
 class ADBService @Inject()(cliProcessFactory: CLIProcessFactory) {
   private[adb] val logger: Logger = LoggerFactory.getLogger(classOf[Device])
 
   def commandLine(device: Device,
-                  timeout: Timeout = Device.defaultTimeout,
+                  timeout: Timeout = ADBService.defaultTimeout,
                   charset: Charset = ADBCommandLine.UTF_8): ADBCommandLine =
     new ADBCommandLine(cliProcessFactory, device, timeout, charset)
 
@@ -79,7 +40,7 @@ class ADBService @Inject()(cliProcessFactory: CLIProcessFactory) {
     * @return the result of running the function
     */
   def withCommandLine[A](device: Device,
-                         timeout: Timeout = Device.defaultTimeout,
+                         timeout: Timeout = ADBService.defaultTimeout,
                          charset: Charset = ADBCommandLine.UTF_8)(fn: ADBCommandLine => A): A =
     fn(commandLine(device, timeout, charset))
 
@@ -105,6 +66,8 @@ class ADBService @Inject()(cliProcessFactory: CLIProcessFactory) {
 }
 
 object ADBService {
+  val defaultTimeout: Timeout = Timeout(10, TimeUnit.MINUTES)
+
   def apply(cliProcessFactory: CLIProcessFactory): ADBService =
     new ADBService(cliProcessFactory)
 }

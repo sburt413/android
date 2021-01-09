@@ -4,7 +4,7 @@ import java.nio.file.Path
 
 import argonaut.Argonaut._
 import argonaut._
-import com.hydrangea.android.adb.Device
+import com.hydrangea.android.Device
 
 import scala.reflect.ClassTag
 
