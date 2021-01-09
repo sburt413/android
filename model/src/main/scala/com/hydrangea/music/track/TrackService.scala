@@ -23,10 +23,9 @@ class TrackService @Inject()(adbService: ADBService, tagger: TikaTagger, fileSys
         Hex.encodeHexString(DigestUtils.digest(sha1.getMessageDigest, inputStream))
       }
 
-//    val hash: String = sha1.digestAsHex(file.location.toJavaPath.toFile)
-    val hash: String = hashOutput.fold(
-      failure => throw new IllegalArgumentException(s"Could not has file (${file.location}): $failure"),
-      hexHash => hexHash)
+    val hash: String =
+      hashOutput.fold(failure => throw new IllegalArgumentException(s"Could not has file (${file.location}): $failure"),
+                      hexHash => hexHash)
 
     Track(hash, file.location.path, file.modifyTime, tagger.tag(file.location))
   }

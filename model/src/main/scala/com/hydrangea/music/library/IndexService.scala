@@ -3,7 +3,6 @@ package com.hydrangea.music.library
 import java.time.{Instant, ZonedDateTime}
 
 import com.hydrangea.file.{AbsolutePath, FilePath}
-import com.hydrangea.music.library.device._
 import com.hydrangea.music.track.Tag
 import com.sksamuel.elastic4s.analysis.{Analysis, _}
 import com.sksamuel.elastic4s.fields._
@@ -217,7 +216,7 @@ object IndexService {
       client.execute(deleteIndex(indexName.value)).await
     }
 
-  def query(indexName: IndexName, query: DeviceIndexQuery, size: Int): Seq[(Id, TrackRecord)] =
+  def query(indexName: IndexName, query: IndexQuery, size: Int): Seq[(Id, TrackRecord)] =
     withClient { client =>
       import com.sksamuel.elastic4s.requests.searches._
       val response: Response[SearchResponse] =
@@ -313,14 +312,14 @@ object QueryBuilder {
   import com.sksamuel.elastic4s.ElasticDsl._
 
   @tailrec
-  def toElasticsearch(recordQuery: DeviceIndexQuery): Query =
+  def toElasticsearch(recordQuery: IndexQuery): Query =
     recordQuery match {
-      case AllOf(elements)             => bool(mustQueries = elements.map(toElasticsearchHelper), Nil, Nil)
-      case AnyOf(elements)             => bool(Nil, shouldQueries = elements.map(toElasticsearchHelper), Nil)
-      case op: DeviceIndexQueryOperand => toElasticsearch(AnyOf(Seq(op)))
+      case AllOf(elements)       => bool(mustQueries = elements.map(toElasticsearchHelper), Nil, Nil)
+      case AnyOf(elements)       => bool(Nil, shouldQueries = elements.map(toElasticsearchHelper), Nil)
+      case op: IndexQueryOperand => toElasticsearch(AnyOf(Seq(op)))
     }
 
-  private def toElasticsearchHelper(recordQuery: DeviceIndexQuery): Query =
+  private def toElasticsearchHelper(recordQuery: IndexQuery): Query =
     recordQuery match {
       case all: AllOf => toElasticsearch(all)
       case any: AnyOf => toElasticsearch(any)
