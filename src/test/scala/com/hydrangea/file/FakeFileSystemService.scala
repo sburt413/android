@@ -9,6 +9,8 @@ import com.hydrangea.file.FileSystemService.ReadLambda
 import net.codingwell.scalaguice.ScalaModule
 import scalaz.Disjunction
 
+import scala.reflect.ClassTag
+
 case class FakeFileSystemService(fakeFileSystem: FakeFileSystem) extends FileSystemService {
   override def read[A](location: FileLocation)(readerFn: ReadLambda[A]): Disjunction[String, A] = {
     fakeFileSystem.getOrThrow(location) match {
@@ -28,6 +30,9 @@ case class FakeFileSystemService(fakeFileSystem: FakeFileSystem) extends FileSys
     fakeFileSystem.filesByLocation.toSeq.flatMap({
       case (fileLocation, file) => Some(file.toFileData).filter(_ => fileLocation.startsWith(location))
     })
+
+  override def ancestorLocations[L <: FileLocation](location: L)(implicit classTag: ClassTag[L]): Seq[L] =
+    scan(location).map(_.location).flatMap(_.to[L])
 
   // These fake methods do _not_ need to take advantage of the filesystem
   override def regularFileCount(location: FileLocation): Int =
@@ -66,6 +71,12 @@ sealed trait FakeFile {
       case (local: LocalFileLocation, _: FakeRegularFile) => LocalRegularFileData(local, this.modifyTime)
       case (android: AndroidLocation, _: FakeDirectory)   => AndroidDirectoryData(android, this.modifyTime)
       case (android: AndroidLocation, _: FakeRegularFile) => AndroidRegularFileData(android, this.modifyTime)
+    }
+
+  def asFileDataOrThrow[F <: FileData](implicit classTag: ClassTag[F]): F =
+    this.toFileData match {
+      case f: F => f
+      case d    => throw new IllegalStateException(s"$d is not a ${classTag.runtimeClass.getName}")
     }
 }
 

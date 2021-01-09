@@ -15,6 +15,7 @@ import scalaz.{-\/, Disjunction, \/-}
 
 import scala.jdk.OptionConverters._
 import scala.jdk.StreamConverters._
+import scala.reflect.ClassTag
 
 /**
   * A service that can read file data from an arbitrary [[FileLocation]].
@@ -68,10 +69,20 @@ trait FileSystemService {
 
   /**
     * Returns all ancestor [[FileData]] for all files found under the given [[FileLocation]].
+    *
     * @param location the [[FileLocation]] to list all ancestor files for
     * @return all ancestor [[FileData]] for all files found under the given [[FileLocation]]
     */
   def scan(location: FileLocation): Seq[FileData]
+
+  /**
+    * Returns all locations of all files under the given [[FileLocation]].
+    *
+    * @param location the [[FileLocation]] to list all ancestor locations for
+    * @tparam L the type of location
+    * @return all locations of all files under the given [[FileLocation]]
+    */
+  def ancestorLocations[L <: FileLocation](location: L)(implicit classTag: ClassTag[L]): Seq[L]
 
   /**
     * Returns a count of all ancestor regular files found under the given [[FileLocation]].  This method will take
@@ -154,6 +165,23 @@ class FileSystemServiceImpl @Inject()(cliProcessFactory: CLIProcessFactory) exte
       .walk(path.toJavaPath)
       .toScala(LazyList)
       .flatMap(javaPath => LocalFileData(javaPath))
+
+  def ancestorLocations[L <: FileLocation](location: L)(implicit classTag: ClassTag[L]): Seq[L] =
+    location match {
+      case LocalFileLocation(path) => localAncestorLocations(path).flatMap(_.to[L])
+      case AndroidLocation(device, path) =>
+        device
+          .commandline(cliProcessFactory)
+          .find(path)
+          .map(ancestorPath => AndroidLocation(device, ancestorPath))
+          .flatMap(_.to[L])
+    }
+
+  private def localAncestorLocations(path: AbsolutePath): Seq[LocalFileLocation] =
+    Files
+      .walk(path.toJavaPath)
+      .toScala(LazyList)
+      .flatMap(javaPath => LocalFileLocation(javaPath))
 
   def regularFileCount(location: FileLocation): Int =
     location match {

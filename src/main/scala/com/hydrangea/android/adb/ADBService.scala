@@ -202,12 +202,11 @@ class ADBCommandLine(cliProcessFactory: CLIProcessFactory, val device: Device, t
     * Runs an underlying `find` command with the given options, returning the found values as paths.
     *
     * @param directoryPath the path to the directory to find from
-    * @param option0 the criteria to apply to the find command
-    * @param options any additional criteria to add to the find command
+    * @param options the criteria to apply to the find command
     * @return all paths found by the command
     */
-  def find(directoryPath: AbsolutePath, option0: FindOption, options: FindOption*): Seq[AbsolutePath] =
-    findCmd(directoryPath, (Seq(option0) ++ options).flatMap(opt => Seq(opt.param, opt.value)))
+  def find(directoryPath: AbsolutePath, options: FindOption*): Seq[AbsolutePath] =
+    findCmd(directoryPath, options.flatMap(opt => Seq(opt.param, opt.value)))
 
   /**
     * Runs a find command with directories type already applied.
@@ -217,7 +216,7 @@ class ADBCommandLine(cliProcessFactory: CLIProcessFactory, val device: Device, t
     * @return all paths found by the command
     */
   def findDirectories(directoryPath: AbsolutePath, options: FindOption*): Seq[AbsolutePath] =
-    find(directoryPath, ForDirectories, options: _*)
+    find(directoryPath, (ForDirectories +: options): _*)
 
   /**
     * Runs a find command with regular files type already applied.

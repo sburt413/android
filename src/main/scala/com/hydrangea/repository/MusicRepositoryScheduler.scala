@@ -3,13 +3,14 @@ package com.hydrangea.repository
 import java.time.Instant
 
 import com.google.inject.Inject
-import com.hydrangea.file.{DirectoryFileData, FileLocation, FileSystemService}
+import com.hydrangea.file.{DirectoryFileData, FileData, FileLocation, FileSystemService, RegularFileData}
+import com.hydrangea.music.track.{Track, TrackService}
 
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
 // TODO: Find deleted entries
-class MusicRepositoryScheduler @Inject()(fileSystemService: FileSystemService) {
+class MusicRepositoryScheduler @Inject()(fileSystemService: FileSystemService, trackService: TrackService) {
   def createSchedule[L <: FileLocation](source: MusicRepository[L])(implicit classTag: ClassTag[L]): Schedule[L] =
     updateSchedule(source, Schedule(Nil))
 
@@ -69,6 +70,35 @@ class MusicRepositoryScheduler @Inject()(fileSystemService: FileSystemService) {
     val (recordsNeedingUpdates, upToDateRecords) = schedule.records.partition(record => record.needsUpdate)
     take(recordsNeedingUpdates.sortBy(_.lastIndexed), Nil, upToDateRecords, fileCount)
   }
+
+  def updateRepository[L <: FileLocation](source: MusicRepository[L], schedule: Schedule[L])(
+      implicit classTag: ClassTag[L]): MusicRepository[L] = {
+    val indexTime: Instant = Instant.now()
+    val newRecordsByLocation: Map[L, List[RepositoryRecord]] =
+      schedule.records
+        .filter(_.needsUpdate)
+        .map(record => {
+          val mp3Files: Seq[FileData] = fileSystemService.scan(record.directoryLocation).filter(isMp3)
+          val newRecords: List[RepositoryRecord] =
+            mp3Files
+              .collect({
+                case file: RegularFileData =>
+                  val track: Track = trackService.readTrack(file)
+                  RepositoryRecord(source.root.path, track, indexTime)
+              })
+              .toList
+
+          record.directoryLocation -> newRecords
+        })
+        .toMap
+
+    newRecordsByLocation.foldLeft(source)({
+      case (currentRepository, (directoryLocation, newDirectoryRecords)) =>
+        currentRepository.removeDirectory(directoryLocation).addRecords(newDirectoryRecords)
+    })
+  }
+
+  private def isMp3(file: FileData): Boolean = file.location.path.raw.endsWith(".mp3")
 }
 
 /**

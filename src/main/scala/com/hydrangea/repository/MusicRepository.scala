@@ -20,8 +20,17 @@ case class MusicRepository[L <: FileLocation](root: L, records: List[RepositoryR
     * @param record the record to fetch the [[FileLocation]] for
     * @return the [[FileLocation]] for the given record in the repository
     */
-  def absolutePath(record: RepositoryRecord): FileLocation =
+  def recordLocation(record: RepositoryRecord): FileLocation =
     root ++ record.path
+
+  def removeDirectory(location: FileLocation): MusicRepository[L] = {
+    val remainingRecords: List[RepositoryRecord] =
+      records.filterNot(record => recordLocation(record).startsWith(location))
+    MusicRepository(root, remainingRecords)
+  }
+
+  def addRecords(records: Seq[RepositoryRecord]): MusicRepository[L] =
+    copy(records = this.records ++ records)
 }
 
 object MusicRepository {

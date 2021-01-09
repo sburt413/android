@@ -1,5 +1,6 @@
 package com.hydrangea.repository
 
+import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -11,12 +12,14 @@ import com.hydrangea.file.{
   FakeFileSystemService,
   FakeRegularFile,
   LocalFileLocation,
+  LocalRegularFileData,
   RelativePath,
   UnixPathBase
 }
-import com.hydrangea.music.track.{Tag, Track}
+import com.hydrangea.music.track.{Tag, Track, TrackService}
 import com.hydrangea.process.DefaultCLIProcessFactoryModule
 import net.codingwell.scalaguice.InjectorExtensions._
+import org.apache.commons.io.IOUtils
 import org.apache.commons.lang3.{RandomStringUtils, RandomUtils}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
@@ -408,6 +411,88 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
     val expectedBobRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, Some(yesterday), now)
 
     mergedSchedule.records should contain theSameElementsAs List(expectedAliceRecord, expectedBobRecord, charlieRecord)
+  }
+
+  it should "update repositories" in {
+    val root = FakeDirectory(repositoryRoot, lastWeek)
+
+    val fileContent1: ByteArrayOutputStream = new ByteArrayOutputStream()
+    IOUtils.copy(getClass.getResourceAsStream("/audio/sample1.mp3"), fileContent1)
+    val fileContent2: ByteArrayOutputStream = new ByteArrayOutputStream()
+    IOUtils.copy(getClass.getResourceAsStream("/audio/sample2.mp3"), fileContent2)
+    val fileContent3: ByteArrayOutputStream = new ByteArrayOutputStream()
+    IOUtils.copy(getClass.getResourceAsStream("/audio/sample3.mp3"), fileContent3)
+    val fileContent4: ByteArrayOutputStream = new ByteArrayOutputStream()
+    IOUtils.copy(getClass.getResourceAsStream("/audio/sample4.mp3"), fileContent4)
+    val fileContent5: ByteArrayOutputStream = new ByteArrayOutputStream()
+    IOUtils.copy(getClass.getResourceAsStream("/audio/sample5.mp3"), fileContent5)
+
+    val aliceDirectory = FakeDirectory(aliceLocation, lastWeek)
+    val alice1Location: LocalFileLocation = aliceLocation ++ RelativePath(Seq("alice1.mp3"))
+    val alice1 = FakeRegularFile(alice1Location, now, fileContent1.toByteArray)
+    val alice2Location: LocalFileLocation = aliceLocation ++ RelativePath(Seq("alice2.mp3"))
+    val alice2 = FakeRegularFile(alice2Location, lastWeek, fileContent2.toByteArray)
+    val alice3Location: LocalFileLocation = aliceLocation ++ RelativePath(Seq("alice3.mp3"))
+    val alice3 = FakeRegularFile(alice3Location, yesterday, fileContent3.toByteArray)
+
+    val bobDirectory = FakeDirectory(bobLocation, now)
+    val bob1Location: LocalFileLocation = bobLocation ++ RelativePath(Seq("bob1.mp3"))
+    val bob1 = FakeRegularFile(bob1Location, lastWeek, fileContent4.toByteArray)
+    val bob2Location: LocalFileLocation = bobLocation ++ RelativePath(Seq("bob2.mp3"))
+    val bob2 = FakeRegularFile(bob2Location, tomorrow, fileContent5.toByteArray)
+
+    val charlieDirectory = FakeDirectory(charlieLocation, now)
+    val charlie1Location = charlieLocation ++ RelativePath(Seq("charlie1.mp3"))
+    val charlie1 = FakeRegularFile(charlie1Location, lastWeek)
+
+    val files: Seq[FakeFile] =
+      Seq(root, aliceDirectory, alice1, alice2, alice3, bobDirectory, bob1, bob2, charlieDirectory, charlie1)
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, FakeFileSystemService.module(files))
+
+    // alice needs updating; bob hasn't been updated; charlie doesn't need an update
+    val aliceSchedule: ScheduleRecord[LocalFileLocation] = ScheduleRecord(aliceLocation, Some(yesterday), now)
+    val bobSchedule: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, None, yesterday)
+    val charlieSchedule: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, Some(tomorrow), now)
+    val schedule: Schedule[LocalFileLocation] = Schedule(List(aliceSchedule, bobSchedule, charlieSchedule))
+
+    val trackService: TrackService = injector.instance[TrackService]
+    val actualAlice1Track: Track = trackService.readTrack(alice1.asFileDataOrThrow[LocalRegularFileData])
+    val actualAlice2Track: Track = trackService.readTrack(alice2.asFileDataOrThrow[LocalRegularFileData])
+    val actualAlice3Track: Track = trackService.readTrack(alice3.asFileDataOrThrow[LocalRegularFileData])
+    val bob1Track: Track = trackService.readTrack(bob1.asFileDataOrThrow[LocalRegularFileData])
+    val bob2Track: Track = trackService.readTrack(bob2.asFileDataOrThrow[LocalRegularFileData])
+
+    // Make slight changes so that we know if the data we read is updated or not
+    val existingAliceTrack1: Track =
+      actualAlice1Track.copy(lastModified = yesterday, tag = actualAlice1Track.tag.copy(title = "Old Alice 1"))
+    val alice1RelativePath: RelativePath = alice1Location.path.relativePath(repositoryRoot.path)
+    val existingAlice1Record = RepositoryRecord(alice1RelativePath, existingAliceTrack1, yesterday)
+
+    val existingAliceTrack2: Track =
+      actualAlice2Track.copy(lastModified = yesterday, tag = actualAlice2Track.tag.copy(title = "Old Alice 2"))
+    val alice2RelativePath: RelativePath = alice2Location.path.relativePath(repositoryRoot.path)
+    val existingAlice2Record = RepositoryRecord(alice2RelativePath, existingAliceTrack2, yesterday)
+
+    val repository: MusicRepository[LocalFileLocation] =
+      MusicRepository(repositoryRoot, List(existingAlice1Record, existingAlice2Record))
+
+    val updateTime = Instant.now().minus(1, ChronoUnit.MILLIS)
+    val scheduler: MusicRepositoryScheduler = injector.instance[MusicRepositoryScheduler]
+    val updatedRepository: MusicRepository[LocalFileLocation] = scheduler.updateRepository(repository, schedule)
+
+    val expectedRelativePaths: Seq[RelativePath] =
+      Seq(alice1, alice2, alice3, bob1, bob2)
+        .map(_.location.path)
+        .map(_.relativePath(repositoryRoot.path))
+
+    updatedRepository.root should equal(repository.root)
+    updatedRepository.records.forall(_.lastIndexed.isAfter(updateTime)) should equal(true)
+    updatedRepository.records.map(_.track) should contain theSameElementsAs Seq(actualAlice1Track,
+                                                                                actualAlice2Track,
+                                                                                actualAlice3Track,
+                                                                                bob1Track,
+                                                                                bob2Track)
+    updatedRepository.records.map(_.path) should contain theSameElementsAs expectedRelativePaths
   }
 }
 
