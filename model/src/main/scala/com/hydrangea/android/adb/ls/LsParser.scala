@@ -58,9 +58,7 @@ object LsParser {
   }
 
   def parseDirectory(output: Seq[String]): Seq[(RelativePath, Boolean, Instant)] = {
-    // Ignore first column containing total
-    val entries: Seq[String] = output.tail
-    entries
+    output
       .flatMap(parseFile)
       .filter({
         case (path, _, _) =>
