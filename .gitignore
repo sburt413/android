@@ -1,6 +1,8 @@
 .gradle/
 .idea/
 build/
+coverage/
 index/
-/record/
+record/
+test-output/
 *.log

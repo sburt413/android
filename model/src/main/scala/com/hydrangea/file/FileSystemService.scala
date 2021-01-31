@@ -138,7 +138,11 @@ class FileSystemServiceImpl @Inject()(adbService: ADBService) extends FileSystem
 
   def write(location: FileLocation, data: Array[Byte]): Unit =
     location match {
-      case LocalFileLocation(path)       => Files.write(path.toJavaPath, data)
+      case LocalFileLocation(path) => {
+        val javaPath: Path = path.toJavaPath
+        Files.createDirectories(javaPath.getParent)
+        Files.write(javaPath, data)
+      }
       case AndroidLocation(device, path) => ???
     }
 

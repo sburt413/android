@@ -34,6 +34,8 @@ case class AbsolutePath(base: PathBase, segments: Seq[String]) {
       }
     }
 
+  def last: String = segments.last
+
   def relativePath(from: AbsolutePath): RelativePath =
     if (!base.root.equals(base.root)) {
       throw new IllegalArgumentException(s"File root does not match: ${this.base.root} != ${from.base.root}")

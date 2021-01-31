@@ -30,7 +30,6 @@ dependencies {
     compile group: 'org.apache.commons', name: 'commons-text', version: '1.9'
     compile group: 'com.sksamuel.elastic4s', name: 'elastic4s-client-esjava_2.13', version: '7.7.0'
     compile group: 'com.sksamuel.elastic4s', name: 'elastic4s-http_2.13', version: '6.7.5'
-    compile group: 'org.rogach', name: 'scallop_2.13', version: '3.4.0'
     compile group: 'io.argonaut', name: 'argonaut_2.13', version: '6.3.0'
     compile group: 'com.beachape', name: 'enumeratum_2.13', version: '1.6.0'
     compile group: 'com.beachape', name: 'enumeratum-macros_2.13', version: '1.6.0'

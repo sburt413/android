@@ -5,9 +5,10 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import com.google.inject.Guice
-import com.hydrangea.file.{AbsolutePath, DefaultFileSystemServiceModule, LocalFileLocation, RelativePath, UnixPathBase}
+import com.hydrangea.file.{AbsolutePath, FakeFileSystemService, LocalFileLocation, RelativePath, UnixPathBase}
 import com.hydrangea.music.track.{Tag, Track}
 import com.hydrangea.process.DefaultCLIProcessFactoryModule
+import com.hydrangea.{ConfigurationModule, ConfigurationValue}
 import net.codingwell.scalaguice.InjectorExtensions._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
@@ -15,24 +16,26 @@ import org.scalatest.matchers.should.Matchers._
 class MusicRepositoryServiceTest extends AnyFlatSpec {
   import MusicRepositoryServiceTest._
 
-  val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, DefaultFileSystemServiceModule)
+  val injector =
+    Guice.createInjector(DefaultCLIProcessFactoryModule, ConfigurationModule(config), FakeFileSystemService.module(Nil))
 
-  "Music Repository Service" should "persist and load repository records" in {
+  "Music Repository Service" should "persist repositories" in {
     val location: LocalFileLocation = LocalFileLocation(AbsolutePath(UnixPathBase, Seq("music")))
     val repository: MusicRepository[LocalFileLocation] = MusicRepository(location, List(aliceRecord, bobRecord))
 
     val musicRepositoryService: MusicRepositoryService = injector.instance[MusicRepositoryService]
-    val testFilePath: Path = Path.of("test.json")
-    musicRepositoryService.persist(repository, testFilePath)
+    musicRepositoryService.writeRepository(repository)
 
-    val reloadedRepository: MusicRepository[LocalFileLocation] =
-      musicRepositoryService.load[LocalFileLocation](testFilePath).getOrElse(fail("Cannot load repository from file."))
+    val loadedRepository: MusicRepository[LocalFileLocation] =
+      musicRepositoryService.loadRepository(location).getOrElse(fail("Could not load Repository"))
 
-    reloadedRepository should equal(repository)
+    loadedRepository should equal(repository)
   }
 }
 
 object MusicRepositoryServiceTest {
+  private val config: ConfigurationValue = ConfigurationValue(Path.of("test-output"))
+
   // Instant can have nano-second precision, marshalling keeps only mills
   private val now: Instant = Instant.now().truncatedTo(ChronoUnit.MILLIS)
   private val yesterday: Instant = now.minus(1, ChronoUnit.DAYS)

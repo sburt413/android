@@ -5,6 +5,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import com.google.inject.Guice
+import com.hydrangea.TypeSafeConfigurationModule
 import com.hydrangea.file.{
   AbsolutePath,
   FakeDirectory,
@@ -18,16 +19,50 @@ import com.hydrangea.file.{
 }
 import com.hydrangea.music.track.{Tag, Track, TrackService}
 import com.hydrangea.process.DefaultCLIProcessFactoryModule
+import com.hydrangea.repository.schedule.{Schedule, ScheduleRecord, SchedulerService}
 import net.codingwell.scalaguice.InjectorExtensions._
 import org.apache.commons.io.IOUtils
 import org.apache.commons.lang3.{RandomStringUtils, RandomUtils}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 
-class MusicRepositorySchedulerTest extends AnyFlatSpec {
-  import com.hydrangea.repository.MusicRepositorySchedulerTest._
+class SchedulerServiceTest extends AnyFlatSpec {
+  import com.hydrangea.repository.SchedulerServiceTest._
 
-  "Music Repository Scheduler" should "create schedules" in {
+  "Scheduler Service" should "persist schedules" in {
+    val root = FakeDirectory(repositoryRoot, lastWeek)
+    val aliceDirectory = FakeDirectory(aliceLocation, lastWeek)
+    val alice1RelativePath = RelativePath(Seq("alice1.mp3"))
+    val alice1 = FakeRegularFile(aliceLocation ++ alice1RelativePath, lastWeek)
+
+    val bobDirectory = FakeDirectory(bobLocation, now)
+    val bob1RelativePath = RelativePath(Seq("bob1.mp3"))
+    val bob1 = FakeRegularFile(bobLocation ++ bob1RelativePath, lastWeek)
+
+    val alice1Record = repositoryRecord(aliceDirectory, alice1RelativePath, yesterday)
+    val bob1Record = repositoryRecord(bobDirectory, bob1RelativePath, lastWeek)
+
+    val repository: MusicRepository[LocalFileLocation] = MusicRepository(repositoryRoot, List(alice1Record, bob1Record))
+
+    val files: Seq[FakeFile] =
+      Seq(root, aliceDirectory, alice1, bobDirectory, bob1)
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule,
+                                        TypeSafeConfigurationModule,
+                                        FakeFileSystemService.module(files))
+    val scheduler: SchedulerService = injector.instance[SchedulerService]
+
+    val aliceScheduleRecord: ScheduleRecord[LocalFileLocation] =
+      ScheduleRecord(aliceLocation, Some(alice1Record.lastIndexed), alice1Record.lastIndexed)
+    val bobScheduleRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, None, bob1Record.lastIndexed)
+    val schedule: Schedule[LocalFileLocation] = Schedule(List(aliceScheduleRecord, bobScheduleRecord))
+    scheduler.writeSchedule(repository, schedule)
+
+    val loadedSchedule: Schedule[LocalFileLocation] =
+      scheduler.loadSchedule(repository).getOrElse(fail("Could not load Schedule"))
+    schedule should equal(loadedSchedule)
+  }
+
+  it should "create schedules" in {
     val root = FakeDirectory(repositoryRoot, lastWeek)
 
     val aliceDirectory = FakeDirectory(aliceLocation, lastWeek)
@@ -48,14 +83,16 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
 
     val files: Seq[FakeFile] =
       Seq(root, aliceDirectory, alice1, alice2, alice3, bobDirectory, bob1, bob2, emptyDirectory)
-    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, FakeFileSystemService.module(files))
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule,
+                                        TypeSafeConfigurationModule,
+                                        FakeFileSystemService.module(files))
 
     val alice1Record = repositoryRecord(aliceDirectory, alice1RelativePath, lastWeek)
     val alice2Record = repositoryRecord(aliceDirectory, alice2RelativePath, lastWeek)
     val repository: MusicRepository[LocalFileLocation] =
       MusicRepository(repositoryRoot, List(alice1Record, alice2Record))
 
-    val scheduler: MusicRepositoryScheduler = injector.instance[MusicRepositoryScheduler]
+    val scheduler: SchedulerService = injector.instance[SchedulerService]
     val schedule: Schedule[LocalFileLocation] = scheduler.createSchedule(repository)
 
     // The alice2 file has a more recent update (now) than the other records
@@ -88,7 +125,9 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
 
     val files: Seq[FakeFile] =
       Seq(root, aliceDirectory, alice1, alice2, alice3, bobDirectory, bob1, bob2, emptyDirectory)
-    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, FakeFileSystemService.module(files))
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule,
+                                        TypeSafeConfigurationModule,
+                                        FakeFileSystemService.module(files))
 
     val alice1Record = repositoryRecord(aliceDirectory, alice1RelativePath, lastWeek)
     val alice2Record = repositoryRecord(aliceDirectory, alice2RelativePath, lastWeek)
@@ -100,7 +139,7 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
     val currentBobRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, None, lastWeek)
     val currentSchedule: Schedule[LocalFileLocation] = Schedule(List(currentAliceRecord, currentBobRecord))
 
-    val scheduler: MusicRepositoryScheduler = injector.instance[MusicRepositoryScheduler]
+    val scheduler: SchedulerService = injector.instance[SchedulerService]
     val updatedSchedule: Schedule[LocalFileLocation] = scheduler.updateSchedule(repository, currentSchedule)
 
     val expectedAliceRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(aliceLocation, Some(lastWeek), now)
@@ -136,14 +175,16 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
 
     val files: Seq[FakeFile] =
       Seq(root, aliceDirectory, alice1, alice2, alice3, bobDirectory, bob1, bob2, charlieDirectory, charlie1, charlie2)
-    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, FakeFileSystemService.module(files))
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule,
+                                        TypeSafeConfigurationModule,
+                                        FakeFileSystemService.module(files))
 
     val aliceRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(aliceLocation, None, lastWeek)
     val bobRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, None, lastWeek)
     val charlieRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(charlieLocation, None, lastWeek)
     val currentSchedule: Schedule[LocalFileLocation] = Schedule(List(aliceRecord, bobRecord, charlieRecord))
 
-    val scheduler: MusicRepositoryScheduler = injector.instance[MusicRepositoryScheduler]
+    val scheduler: SchedulerService = injector.instance[SchedulerService]
     // Take the 3 files under Alice and 2 files under Bob records
     val (takenSchedule, remainingSchedule) = scheduler.splitSchedule(currentSchedule, 5, 0)
     takenSchedule.records should contain theSameElementsAs Seq(aliceRecord, bobRecord)
@@ -191,14 +232,16 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
           charlieDirectory,
           charlie1,
           charlie2)
-    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, FakeFileSystemService.module(files))
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule,
+                                        TypeSafeConfigurationModule,
+                                        FakeFileSystemService.module(files))
 
     val aliceRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(aliceLocation, None, lastWeek)
     val bobRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, None, lastWeek)
     val charlieRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(charlieLocation, None, lastWeek)
     val currentSchedule: Schedule[LocalFileLocation] = Schedule(List(aliceRecord, bobRecord, charlieRecord))
 
-    val scheduler: MusicRepositoryScheduler = injector.instance[MusicRepositoryScheduler]
+    val scheduler: SchedulerService = injector.instance[SchedulerService]
     // Take the 2 files under Alice and 2 files under Charlie records, skip 5 under Bob
     val (takenSchedule, remainingSchedule) = scheduler.splitSchedule(currentSchedule, 4, 0)
     takenSchedule.records should contain theSameElementsAs Seq(aliceRecord, charlieRecord)
@@ -217,13 +260,15 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
     val bob1 = FakeRegularFile(bobLocation ++ bob1RelativePath, lastWeek)
 
     val files: Seq[FakeFile] = Seq(root, aliceDirectory, alice1, bobDirectory, bob1)
-    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, FakeFileSystemService.module(files))
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule,
+                                        TypeSafeConfigurationModule,
+                                        FakeFileSystemService.module(files))
 
     val aliceRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(aliceLocation, Some(now), lastWeek)
     val bobRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, None, lastWeek)
     val currentSchedule: Schedule[LocalFileLocation] = Schedule(List(aliceRecord, bobRecord))
 
-    val scheduler: MusicRepositoryScheduler = injector.instance[MusicRepositoryScheduler]
+    val scheduler: SchedulerService = injector.instance[SchedulerService]
     val (takenSchedule, remainingSchedule) = scheduler.splitSchedule(currentSchedule, 1, 0)
     takenSchedule.records should contain theSameElementsAs Seq(bobRecord)
     remainingSchedule.records should contain theSameElementsAs Seq(aliceRecord)
@@ -245,14 +290,16 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
     val charlie1 = FakeRegularFile(charlieLocation ++ charlie1RelativePath, lastWeek)
 
     val files: Seq[FakeFile] = Seq(root, aliceDirectory, alice1, bobDirectory, bob1, charlieDirectory, charlie1)
-    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, FakeFileSystemService.module(files))
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule,
+                                        TypeSafeConfigurationModule,
+                                        FakeFileSystemService.module(files))
 
     val aliceRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(aliceLocation, Some(yesterday), now)
     val bobRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, Some(lastWeek), now)
     val charlieRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, None, now)
     val currentSchedule: Schedule[LocalFileLocation] = Schedule(List(aliceRecord, bobRecord, charlieRecord))
 
-    val scheduler: MusicRepositoryScheduler = injector.instance[MusicRepositoryScheduler]
+    val scheduler: SchedulerService = injector.instance[SchedulerService]
     val (takenSchedule, remainingSchedule) = scheduler.splitSchedule(currentSchedule, 2, 0)
     takenSchedule.records should contain theSameElementsAs Seq(bobRecord, charlieRecord)
     remainingSchedule.records should contain theSameElementsAs Seq(aliceRecord)
@@ -278,13 +325,15 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
     val bob2 = FakeRegularFile(bobLocation ++ bob2RelativePath, tomorrow)
 
     val files: Seq[FakeFile] = Seq(root, aliceDirectory, alice1, alice2, alice3, alice4, bobDirectory, bob1, bob2)
-    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, FakeFileSystemService.module(files))
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule,
+                                        TypeSafeConfigurationModule,
+                                        FakeFileSystemService.module(files))
 
     val aliceRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(aliceLocation, None, now)
     val bobRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, None, now)
     val currentSchedule: Schedule[LocalFileLocation] = Schedule(List(aliceRecord, bobRecord))
 
-    val scheduler: MusicRepositoryScheduler = injector.instance[MusicRepositoryScheduler]
+    val scheduler: SchedulerService = injector.instance[SchedulerService]
     // We accept the alice record since 4 less within the margin of error with 3
     val (takenSchedule, remainingSchedule) = scheduler.splitSchedule(currentSchedule, 3, 1)
     takenSchedule.records should contain theSameElementsAs Seq(aliceRecord)
@@ -307,13 +356,15 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
     val bob2 = FakeRegularFile(bobLocation ++ bob2RelativePath, tomorrow)
 
     val files: Seq[FakeFile] = Seq(root, aliceDirectory, alice1, alice2, bobDirectory, bob1, bob2)
-    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, FakeFileSystemService.module(files))
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule,
+                                        TypeSafeConfigurationModule,
+                                        FakeFileSystemService.module(files))
 
     val aliceRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(aliceLocation, None, now)
     val bobRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, None, now)
     val currentSchedule: Schedule[LocalFileLocation] = Schedule(List(aliceRecord, bobRecord))
 
-    val scheduler: MusicRepositoryScheduler = injector.instance[MusicRepositoryScheduler]
+    val scheduler: SchedulerService = injector.instance[SchedulerService]
     // We stop at alice because 2 is within the margin of error of our target amount of 3
     val (takenSchedule, remainingSchedule) = scheduler.splitSchedule(currentSchedule, 3, 1)
     takenSchedule.records should contain theSameElementsAs Seq(aliceRecord)
@@ -336,13 +387,15 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
     val bob2 = FakeRegularFile(bobLocation ++ bob2RelativePath, tomorrow)
 
     val files: Seq[FakeFile] = Seq(root, aliceDirectory, alice1, alice2, bobDirectory, bob1, bob2)
-    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, FakeFileSystemService.module(files))
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule,
+                                        TypeSafeConfigurationModule,
+                                        FakeFileSystemService.module(files))
 
     val aliceRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(aliceLocation, None, now)
     val bobRecord: ScheduleRecord[LocalFileLocation] = ScheduleRecord(bobLocation, None, now)
     val currentSchedule: Schedule[LocalFileLocation] = Schedule(List(aliceRecord, bobRecord))
 
-    val scheduler: MusicRepositoryScheduler = injector.instance[MusicRepositoryScheduler]
+    val scheduler: SchedulerService = injector.instance[SchedulerService]
     val (takenSchedule, remainingSchedule) = scheduler.splitSchedule(currentSchedule, 10, 0)
     takenSchedule.records should contain theSameElementsAs Seq(aliceRecord, bobRecord)
     remainingSchedule.records.isEmpty should equal(true)
@@ -447,7 +500,9 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
 
     val files: Seq[FakeFile] =
       Seq(root, aliceDirectory, alice1, alice2, alice3, bobDirectory, bob1, bob2, charlieDirectory, charlie1)
-    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule, FakeFileSystemService.module(files))
+    val injector = Guice.createInjector(DefaultCLIProcessFactoryModule,
+                                        TypeSafeConfigurationModule,
+                                        FakeFileSystemService.module(files))
 
     // alice needs updating; bob hasn't been updated; charlie doesn't need an update
     val aliceSchedule: ScheduleRecord[LocalFileLocation] = ScheduleRecord(aliceLocation, Some(yesterday), now)
@@ -477,7 +532,7 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
       MusicRepository(repositoryRoot, List(existingAlice1Record, existingAlice2Record))
 
     val updateTime = Instant.now().minus(1, ChronoUnit.MILLIS)
-    val scheduler: MusicRepositoryScheduler = injector.instance[MusicRepositoryScheduler]
+    val scheduler: SchedulerService = injector.instance[SchedulerService]
     val updatedRepository: MusicRepository[LocalFileLocation] = scheduler.updateRepository(repository, schedule)
 
     val expectedRelativePaths: Seq[RelativePath] =
@@ -496,8 +551,9 @@ class MusicRepositorySchedulerTest extends AnyFlatSpec {
   }
 }
 
-object MusicRepositorySchedulerTest {
-  val now = Instant.now()
+object SchedulerServiceTest {
+  // Instant can have nano-second precision, marshalling keeps only mills
+  val now: Instant = Instant.now().truncatedTo(ChronoUnit.MILLIS)
   val lastWeek = now.minus(7, ChronoUnit.DAYS)
   val yesterday = now.minus(1, ChronoUnit.DAYS)
   val tomorrow = now.plus(1, ChronoUnit.DAYS)
