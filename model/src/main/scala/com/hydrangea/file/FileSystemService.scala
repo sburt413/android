@@ -13,7 +13,6 @@ import net.codingwell.scalaguice.ScalaModule
 import org.apache.commons.io.IOUtils
 import scalaz.{-\/, Disjunction, \/-}
 
-import scala.jdk.OptionConverters._
 import scala.jdk.StreamConverters._
 import scala.reflect.ClassTag
 
@@ -109,7 +108,11 @@ class FileSystemServiceImpl @Inject()(adbService: ADBService) extends FileSystem
   def read[A](location: FileLocation)(readerFn: ReadLambda[A]): Disjunction[String, A] =
     location match {
       case localLocation: LocalFileLocation =>
-        readerFn(Files.newInputStream(localLocation.toJavaPath)).toRightDisjunction
+        if (Files.exists(localLocation.toJavaPath)) {
+          readerFn(Files.newInputStream(localLocation.toJavaPath)).toRightDisjunction
+        } else {
+          "No such file".toLeftDisjunction
+        }
       case androidLocation: AndroidLocation =>
         readFromDevice(androidLocation)(readerFn)
     }
@@ -202,13 +205,21 @@ class FileSystemServiceImpl @Inject()(adbService: ADBService) extends FileSystem
       case AndroidLocation(device, path) => adbService.commandLine(device).mostRecentUpdate(path)
     }
 
-  private def mostRecentLocalUpdate(path: AbsolutePath): Option[Instant] =
-    Files
-      .list(path.toJavaPath)
-      .map(Files.getLastModifiedTime(_))
-      .map(_.toInstant)
-      .max(_.compareTo(_))
-      .toScala
+  private def mostRecentLocalUpdate(path: AbsolutePath): Option[Instant] = {
+    val javaPath: Path = path.toJavaPath
+    val fileTimes: Seq[Instant] =
+      Files
+        .list(javaPath)
+        .map(Files.getLastModifiedTime(_))
+        .map(_.toInstant)
+        .toScala(Seq)
+
+    val folderTime: Instant = Files.getLastModifiedTime(javaPath).toInstant
+    val times: Seq[Instant] = fileTimes :+ folderTime
+    val ordering: Ordering[Instant] = (lhs: Instant, rhs: Instant) => lhs.compareTo(rhs)
+    val mostRecentUpdate: Instant = times.max(ordering)
+    Some(mostRecentUpdate)
+  }
 
   private case class DeviceReader[A](inputStream: InputStream, fn: ReadLambda[A]) extends Thread {
     var output: A = _

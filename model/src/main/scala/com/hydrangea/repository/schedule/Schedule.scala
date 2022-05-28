@@ -1,12 +1,12 @@
 package com.hydrangea.repository.schedule
 
-import java.time.Instant
-
 import argonaut.Argonaut._
 import argonaut.{CodecJson, DecodeJson, EncodeJson}
 import com.hydrangea.codec.Codecs._
 import com.hydrangea.file.FileLocation
 import com.hydrangea.repository.{MusicRepository, RepositoryRecord}
+
+import java.time.Instant
 
 /**
   * A [[Schedule]] is the aggregation of when a repository system was updated on the file system and when the file was
@@ -72,9 +72,9 @@ object Schedule {
 }
 
 /**
-  * A record of a top level directory in a [[MusicRepository]].  This is an agregation of the newest {{mostRecentUpdate}}
-  * time for any file in the directory in the file system, and the last time this file was indexed in the
-  * [[MusicRepository]].
+  * A record of a top level directory in a [[MusicRepository]].  This is an aggregation of the newest
+  * {{mostRecentUpdate}} time for any file in the directory in the file system, and the last time this file was indexed
+  * in the [[MusicRepository]].
   *
   * @param directoryLocation the location under the repository for the directory
   * @param lastIndexed       when the records in the were last indexed for this location

@@ -1,15 +1,15 @@
 package com.hydrangea.repository.merge
 
-import java.time.Instant
-import java.time.temporal.ChronoUnit
-
 import com.hydrangea.file.AbsolutePath
 import com.hydrangea.music.track.{Tag, Track}
 import com.hydrangea.repository.{RepositoryRecord, merge}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 
-// should have matcher doesn't look as good without Symbol
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+// 'should have' matcher doesn't look as good without Symbol
 class RepositoryMergeTest extends AnyFlatSpec {
   import RepositoryMergeTest._
 

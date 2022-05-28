@@ -1,9 +1,5 @@
 package com.hydrangea.android.adb
 
-import java.nio.charset.Charset
-import java.time.Instant
-import java.util.concurrent.TimeUnit
-
 import com.google.inject.Inject
 import com.hydrangea.android.Device
 import com.hydrangea.android.adb.find.{FindOption, ForDirectories, ForRegularFiles}
@@ -19,6 +15,10 @@ import com.hydrangea.file.{
 }
 import com.hydrangea.process.{CLIProcess, CLIProcessFactory, Timeout}
 import org.slf4j.{Logger, LoggerFactory}
+
+import java.nio.charset.Charset
+import java.time.Instant
+import java.util.concurrent.TimeUnit
 
 /**
   * The entry point for accessing devices for ADB (Android Debug Bridge).
@@ -314,6 +314,24 @@ class ADBCommandLine(cliProcessFactory: CLIProcessFactory, val device: Device, t
       .map({
         case (_, _, mostRecentUpdate) =>
           logger.info(s"Most recent update inside $path: $mostRecentUpdate")
+          mostRecentUpdate
+      })
+      .orElse(fileUpdateTime(path))
+  }
+
+  private def fileUpdateTime(path: AbsolutePath): Option[Instant] = {
+    val lastLine = "tail -n 1"
+    val (_, output, err) =
+      runAndParse(adbShellCmd("ls", "--full-time", path.escaped, "|", lastLine))
+    if (err.nonEmpty) {
+      throw new RuntimeException("Error running fileUpdateTime: " + err.mkString("\n"))
+    }
+
+    LsParser
+      .parseFile(output.head)
+      .map({
+        case (_, _, mostRecentUpdate) =>
+          logger.info(s"Most recent update for $path: $mostRecentUpdate")
           mostRecentUpdate
       })
   }

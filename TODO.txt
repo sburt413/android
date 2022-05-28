@@ -1,0 +1,14 @@
+1) Service
+    A) Configuration is a Application level concern.  Have service declare dependencies.
+    B) Schedule
+        I) Handle deleted items
+
+2) Script Controller
+    A) Build Local Repository
+    B) Build Remote Repository
+    C) Calculate Schedule
+    D) Run Schedule
+
+3) Web Server
+    A) Pick Web Framework
+    B) Tomcat Docker Image

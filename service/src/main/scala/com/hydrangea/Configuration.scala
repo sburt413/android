@@ -1,10 +1,11 @@
 package com.hydrangea
 
-import java.nio.file.Path
-
-import com.google.inject.AbstractModule
+import com.hydrangea.android.Device
+import com.hydrangea.file.FilePath._
+import com.hydrangea.file.{AbsolutePath, AndroidLocation, LocalFileLocation}
 import com.typesafe.config.{Config, ConfigFactory}
-import net.codingwell.scalaguice.ScalaModule
+
+import java.nio.file.Path
 
 trait Configuration {
 
@@ -14,6 +15,10 @@ trait Configuration {
     * @return where programs should store its metadata about music
     */
   def repositoryDataDirectory: Path
+
+  def localRepositoryLocation: LocalFileLocation
+
+  def androidRepositoryLocation: AndroidLocation
 }
 
 object TypeSafeConfiguration extends Configuration {
@@ -22,20 +27,17 @@ object TypeSafeConfiguration extends Configuration {
   private val dataConfig: Config = config.getConfig("com.hydrangea.data")
   val repositoryDataDirectory: Path = Path.of(dataConfig.getString("repository-directory"))
 
-  // TODO: These should be source and destination and be a Location, not a path
-  private val deviceConfig: Config = config.getConfig("com.hydrangea.device")
-  val deviceMusicDirectory: String = deviceConfig.getString("music-directory")
-
   private val repositoryConfig: Config = config.getConfig("com.hydrangea.repository")
-  val repositoryDirectory: Path = Path.of(repositoryConfig.getString("repository-directory"))
+  val repositoryDirectory: Path = Path.of(repositoryConfig.getString("local.directory"))
+  val localRepositoryLocation: LocalFileLocation =
+    LocalFileLocation(repositoryDirectory).getOrElse(
+      throw new IllegalArgumentException(s"$repositoryDirectory is not a valid path"))
+  val deviceSerial: String = repositoryConfig.getString("device.serial")
+  val deviceRepositoryPath: AbsolutePath = repositoryConfig.getString("device.path").toUnixPath
+  def androidRepositoryLocation: AndroidLocation = AndroidLocation(Device(deviceSerial), deviceRepositoryPath)
 }
 
-case class ConfigurationValue(override val repositoryDataDirectory: Path) extends Configuration
-
-case class ConfigurationModule(configuration: Configuration) extends AbstractModule with ScalaModule {
-  override def configure(): Unit = {
-    bind[Configuration].toInstance(configuration)
-  }
-}
-
-object TypeSafeConfigurationModule extends ConfigurationModule(TypeSafeConfiguration)
+case class ConfigurationValue(override val repositoryDataDirectory: Path,
+                              override val localRepositoryLocation: LocalFileLocation,
+                              override val androidRepositoryLocation: AndroidLocation)
+    extends Configuration

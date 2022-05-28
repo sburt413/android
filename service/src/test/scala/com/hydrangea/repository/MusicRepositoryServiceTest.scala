@@ -1,23 +1,24 @@
 package com.hydrangea.repository
 
-import java.nio.file.Path
-import java.time.Instant
-import java.time.temporal.ChronoUnit
-
 import com.google.inject.Guice
 import com.hydrangea.file.{AbsolutePath, FakeFileSystemService, LocalFileLocation, RelativePath, UnixPathBase}
 import com.hydrangea.music.track.{Tag, Track}
 import com.hydrangea.process.DefaultCLIProcessFactoryModule
-import com.hydrangea.{ConfigurationModule, ConfigurationValue}
 import net.codingwell.scalaguice.InjectorExtensions._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 
+import java.nio.file.Path
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
 class MusicRepositoryServiceTest extends AnyFlatSpec {
   import MusicRepositoryServiceTest._
 
+  private val configuration =
+    MusicRepositoryServiceConfigurationModule(MusicRepositoryConfiguration(Path.of("data")))
   val injector =
-    Guice.createInjector(DefaultCLIProcessFactoryModule, ConfigurationModule(config), FakeFileSystemService.module(Nil))
+    Guice.createInjector(DefaultCLIProcessFactoryModule, configuration, FakeFileSystemService.module(Nil))
 
   "Music Repository Service" should "persist repositories" in {
     val location: LocalFileLocation = LocalFileLocation(AbsolutePath(UnixPathBase, Seq("music")))
@@ -34,8 +35,6 @@ class MusicRepositoryServiceTest extends AnyFlatSpec {
 }
 
 object MusicRepositoryServiceTest {
-  private val config: ConfigurationValue = ConfigurationValue(Path.of("test-output"))
-
   // Instant can have nano-second precision, marshalling keeps only mills
   private val now: Instant = Instant.now().truncatedTo(ChronoUnit.MILLIS)
   private val yesterday: Instant = now.minus(1, ChronoUnit.DAYS)

@@ -1,9 +1,5 @@
 package com.hydrangea.android.adb
 
-import java.io.{ByteArrayInputStream, InputStream}
-import java.nio.charset.Charset
-import java.time.Instant
-
 import com.hydrangea.android.Device
 import com.hydrangea.android.adb.find.ByName
 import com.hydrangea.file.FilePath._
@@ -15,6 +11,9 @@ import org.apache.commons.lang3.RandomStringUtils
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 
+import java.io.{ByteArrayInputStream, InputStream}
+import java.nio.charset.Charset
+import java.time.Instant
 import scala.collection.mutable.ListBuffer
 
 class ADBServiceTest extends AnyFlatSpec {
@@ -293,6 +292,8 @@ class ADBServiceTest extends AnyFlatSpec {
 
     val path: AbsolutePath = "/test".toUnixPath
     val results: Option[Instant] = commandLine.mostRecentUpdate(path)
+
+    // TODO: Test case of empty directory
 
     results should equal(Some(Instant.parse("2020-12-06T09:00:00-05:00")))
   }

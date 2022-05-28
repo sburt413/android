@@ -1,12 +1,7 @@
 package com.hydrangea.repository.schedule
 
-import java.nio.file.Path
-import java.time.Instant
-import java.util.Objects
-
 import argonaut._
-import com.google.inject.Inject
-import com.hydrangea.Configuration
+import com.google.inject.{AbstractModule, Inject}
 import com.hydrangea.file.{
   AndroidLocation,
   DirectoryFileData,
@@ -18,12 +13,16 @@ import com.hydrangea.file.{
 }
 import com.hydrangea.music.track.{Track, TrackService}
 import com.hydrangea.repository.{MusicRepository, RepositoryRecord}
+import net.codingwell.scalaguice.ScalaModule
 
+import java.nio.file.Path
+import java.time.Instant
+import java.util.Objects
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
 // TODO: Find deleted entries
-class SchedulerService @Inject()(configuration: Configuration,
+class SchedulerService @Inject()(configuration: SchedulerConfiguration,
                                  fileSystemService: FileSystemService,
                                  trackService: TrackService,
                                  scheduleDao: ScheduleDAO) {
@@ -34,9 +33,27 @@ class SchedulerService @Inject()(configuration: Configuration,
                                                                schedule: Schedule[L]): Unit =
     scheduleDao.persist(schedule, scheduleFile(repository))
 
+  /**
+    * Creates an new schedule for all top level directories in the given repository
+    *
+    * @param source   the [[MusicRepository]] to schedule
+    * @param classTag
+    * @tparam L
+    * @return the new Schedule
+    */
   def createSchedule[L <: FileLocation](source: MusicRepository[L])(implicit classTag: ClassTag[L]): Schedule[L] =
     updateSchedule(source, Schedule(Nil))
 
+  /**
+    * Updates the 'mostRecentUpdate' for all schedule records, inserting new schedule records for any directory not
+    * currently in the schedule.
+    *
+    * @param source   the [[MusicRepository]] for the given schedule
+    * @param schedule the current schedule
+    * @param classTag
+    * @tparam L
+    * @return the updated schedule
+    */
   def updateSchedule[L <: FileLocation](source: MusicRepository[L], schedule: Schedule[L])(
       implicit classTag: ClassTag[L]): Schedule[L] = {
     val directories: Seq[DirectoryFileData] =
@@ -63,6 +80,16 @@ class SchedulerService @Inject()(configuration: Configuration,
     schedule.merge(newRecords)
   }
 
+  /**
+    * Splits a given schedule.  The function will attempt to take the next `fileCount` number of files that need
+    * updating in the repository base on the given schedule.
+    *
+    * @param schedule      the current schedule for the repository
+    * @param fileCount     the desired number of files to take from the given schedule
+    * @param marginOfError the number of records we can be off in the given `fileCount`
+    * @tparam L
+    * @return the schedule of the taken records on the left and the remaining schedule on the right
+    */
   def splitSchedule[L <: FileLocation](schedule: Schedule[L],
                                        fileCount: Int,
                                        marginOfError: Int): (Schedule[L], Schedule[L]) = {
@@ -94,6 +121,16 @@ class SchedulerService @Inject()(configuration: Configuration,
     take(recordsNeedingUpdates.sortBy(_.lastIndexed), Nil, upToDateRecords, fileCount)
   }
 
+  /**
+    * Updates the given [[MusicRepository]] based on the given [[Schedule]].  This will scan the file system base on the
+    * records in the schedule that need updating.
+    *
+    * @param source   the repository to update
+    * @param schedule the schedule to run
+    * @param classTag
+    * @tparam L
+    * @return the updated repository
+    */
   def updateRepository[L <: FileLocation](source: MusicRepository[L], schedule: Schedule[L])(
       implicit classTag: ClassTag[L]): MusicRepository[L] = {
     val indexTime: Instant = Instant.now()
@@ -134,14 +171,14 @@ class SchedulerService @Inject()(configuration: Configuration,
 
   private def scheduleFile(repositoryLocation: FileLocation): Path = {
     val hash: Int = hashLocation(repositoryLocation)
-    val indexName: String =
+    val (folder, indexName) =
       repositoryLocation match {
-        case LocalFileLocation(path) => s"$localLocationFolder/schedule-local-${path.last}-$hash"
+        case LocalFileLocation(path) => (localLocationFolder, s"schedule-local-${path.last}-$hash")
         case AndroidLocation(device, path) =>
-          s"$androidLocationFolder/schedule-android-${device.serial}-${path.last}-$hash"
+          (androidLocationFolder, s"schedule-android-${device.serial}-${path.last}-$hash")
       }
 
-    configuration.repositoryDataDirectory.resolve(indexName + ".json")
+    folder.resolve(s"$indexName.json")
   }
 
   private def hashLocation[L <: FileLocation](location: L): Int =
@@ -149,4 +186,15 @@ class SchedulerService @Inject()(configuration: Configuration,
       case LocalFileLocation(path)       => Objects.hash("local", path)
       case AndroidLocation(device, path) => Objects.hash(device.serial, path)
     }
+}
+
+case class SchedulerConfiguration(repositoryDataDirectory: Path)
+
+case class SchedulerServiceConfigurationModule(configuration: SchedulerConfiguration)
+    extends AbstractModule
+    with ScalaModule {
+
+  override def configure(): Unit = {
+    bind[SchedulerConfiguration].toInstance(configuration)
+  }
 }

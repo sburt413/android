@@ -1,16 +1,16 @@
 package com.hydrangea.repository
 
+import argonaut.{DecodeJson, EncodeJson}
+import com.google.inject.AbstractModule
+import com.hydrangea.file.{AndroidLocation, FileLocation, LocalFileLocation}
+import net.codingwell.scalaguice.ScalaModule
+
 import java.nio.file.{Files, Path}
 import java.util.Objects
-
-import argonaut.{DecodeJson, EncodeJson}
-import com.hydrangea.Configuration
-import com.hydrangea.file.{AndroidLocation, FileLocation, LocalFileLocation}
 import javax.inject.Inject
-
 import scala.jdk.StreamConverters._
 
-class MusicRepositoryService @Inject()(configuration: Configuration, repositoryDao: MusicRepositoryDAO) {
+class MusicRepositoryService @Inject()(configuration: MusicRepositoryConfiguration, repositoryDao: MusicRepositoryDAO) {
   def loadRepository[L <: FileLocation: EncodeJson: DecodeJson](fileLocation: L): Option[MusicRepository[L]] =
     repositoryDao.load[L](repositoryFile(fileLocation))
 
@@ -57,4 +57,15 @@ class MusicRepositoryService @Inject()(configuration: Configuration, repositoryD
       case LocalFileLocation(path)       => Objects.hash("local", path)
       case AndroidLocation(device, path) => Objects.hash(device.serial, path)
     }
+}
+
+case class MusicRepositoryConfiguration(repositoryDataDirectory: Path)
+
+case class MusicRepositoryServiceConfigurationModule(configuration: MusicRepositoryConfiguration)
+    extends AbstractModule
+    with ScalaModule {
+
+  override def configure(): Unit = {
+    bind[MusicRepositoryConfiguration].toInstance(configuration)
+  }
 }

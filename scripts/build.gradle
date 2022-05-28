@@ -18,6 +18,7 @@ repositories {
 
 dependencies {
     implementation project(':model')
+    implementation project(':service')
     testImplementation(testFixtures(project(":model")))
 
     compile group: 'com.typesafe', name: 'config', version: '1.4.0'
